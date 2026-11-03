@@ -1,7 +1,7 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 
 export interface IGatewayLog extends Document {
-  projectId: mongoose.Types.ObjectId;
+  userId: mongoose.Types.ObjectId;
   category: string;
   endpoint: string;
   primaryProvider: string;
@@ -17,9 +17,9 @@ export interface IGatewayLog extends Document {
 
 const GatewayLogSchema = new Schema<IGatewayLog>(
   {
-    projectId: {
+    userId: {
       type: Schema.Types.ObjectId,
-      ref: 'Project',
+      ref: 'User',
       required: true,
       index: true,
     },
@@ -69,6 +69,6 @@ const GatewayLogSchema = new Schema<IGatewayLog>(
   }
 );
 
-GatewayLogSchema.index({ projectId: 1, createdAt: -1 });
+GatewayLogSchema.index({ userId: 1, createdAt: -1 });
 
 export const GatewayLog: Model<IGatewayLog> = mongoose.model<IGatewayLog>('GatewayLog', GatewayLogSchema);

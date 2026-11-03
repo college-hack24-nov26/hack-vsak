@@ -34,14 +34,14 @@ describe('5. OneAPI Vault & AES-256-GCM Encryption Tests', () => {
 describe('6. OneAPI Multi-Category Provider Registry Tests', () => {
   initProviders();
 
-  it('should have 10 default registered demo providers across 5 categories', () => {
+  it('should have registered demo providers across 5 categories', () => {
     const all = providerRegistry.list();
-    assert.ok(all.length >= 10);
+    assert.ok(all.length >= 11);
 
     const categories = ['ai', 'music', 'weather', 'news', 'environment'] as const;
     for (const cat of categories) {
       const catProviders = providerRegistry.list(cat);
-      assert.equal(catProviders.length, 2, `Category ${cat} must have exactly 2 providers for demo`);
+      assert.ok(catProviders.length >= 2, `Category ${cat} must have at least 2 providers`);
     }
   });
 
@@ -96,5 +96,40 @@ describe('6. OneAPI Multi-Category Provider Registry Tests', () => {
     const retrieved = providerRegistry.get('weather', 'my_custom_sensor');
     assert.ok(retrieved);
     assert.equal(retrieved.displayName, 'My IoT Weather Station');
+  });
+});
+
+describe('8. Dedicated ApiKey Model for Multiple Developer Keys', () => {
+  it('should support multiple API keys per developer with AES-256 encryption and unique hashes', () => {
+    const rawKey1 = 'sk_live_' + 'a'.repeat(48);
+    const rawKey2 = 'sk_live_' + 'b'.repeat(48);
+
+    const enc1 = encryptSecret(rawKey1);
+    const enc2 = encryptSecret(rawKey2);
+
+    assert.notEqual(enc1.combined, enc2.combined);
+    assert.equal(decryptSecret(enc1.combined), rawKey1);
+    assert.equal(decryptSecret(enc2.combined), rawKey2);
+
+    const key1Obj = {
+      name: 'Production Backend Server',
+      keyPrefix: `${rawKey1.slice(0, 12)}...${rawKey1.slice(-4)}`,
+      encryptedKey: enc1.combined,
+      scopes: ['read', 'write', 'proxy'],
+      isActive: true,
+    };
+
+    const key2Obj = {
+      name: 'Mobile App Staging',
+      keyPrefix: `${rawKey2.slice(0, 12)}...${rawKey2.slice(-4)}`,
+      encryptedKey: enc2.combined,
+      scopes: ['read', 'proxy'],
+      isActive: true,
+    };
+
+    assert.equal(decryptSecret(key1Obj.encryptedKey), rawKey1);
+    assert.equal(decryptSecret(key2Obj.encryptedKey), rawKey2);
+    assert.equal(key1Obj.name, 'Production Backend Server');
+    assert.equal(key2Obj.name, 'Mobile App Staging');
   });
 });

@@ -1,27 +1,29 @@
 import { AIResource } from "./resources/ai.js";
+import { WeatherResource } from "./resources/weather.js";
+import { MusicResource } from "./resources/music.js";
+import { NewsResource } from "./resources/news.js";
+import { EnvironmentResource } from "./resources/environment.js";
 import { OneAPIError } from "./errors.js";
 
 export class OneAPI {
   constructor({
     apiKey,
-    projectId,
     baseURL = "http://localhost:5000/api/v1",
-    timeout = 30000
+    timeout = 30000,
   } = {}) {
     if (!apiKey) {
-      throw new Error("OneAPI apiKey is required");
-    }
-
-    if (!projectId) {
-      throw new Error("OneAPI projectId is required");
+      throw new Error("OneAPI apiKey is required (e.g. sk_live_... or developer API key)");
     }
 
     this.apiKey = apiKey;
-    this.projectId = projectId;
     this.baseURL = baseURL.replace(/\/+$/, "");
     this.timeout = timeout;
 
     this.ai = new AIResource(this);
+    this.weather = new WeatherResource(this);
+    this.music = new MusicResource(this);
+    this.news = new NewsResource(this);
+    this.environment = new EnvironmentResource(this);
   }
 
   async request(path, { method = "POST", body, headers = {} } = {}) {
@@ -33,47 +35,45 @@ export class OneAPI {
     );
 
     try {
+      const requestHeaders = {
+        Authorization: `Bearer ${this.apiKey}`,
+        ...headers,
+      };
+
+      if (body !== undefined && !requestHeaders["Content-Type"]) {
+        requestHeaders["Content-Type"] = "application/json";
+      }
+
       const response = await fetch(`${this.baseURL}${path}`, {
         method,
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "X-OneAPI-Project-ID": this.projectId,
-          "Content-Type": "application/json",
-          ...headers
-        },
+        headers: requestHeaders,
         body: body === undefined ? undefined : JSON.stringify(body),
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new OneAPIError(
-          data.message || "OneAPI request failed",
+          data.error?.message || data.message || "OneAPI request failed",
           {
             statusCode: response.status,
-            code: data.code,
+            code: data.error?.code || data.code,
             requestId: data.requestId,
-            provider: data.provider
+            provider: data.provider,
           }
         );
       }
 
       return data;
     } catch (error) {
-      if (error instanceof OneAPIError) {
-        throw error;
-      }
-
       if (error.name === "AbortError") {
-        throw new OneAPIError("OneAPI request timed out", {
-          code: "REQUEST_TIMEOUT"
+        throw new OneAPIError("Request timed out", {
+          code: "TIMEOUT",
         });
       }
 
-      throw new OneAPIError(error.message || "Network request failed", {
-        code: "NETWORK_ERROR"
-      });
+      throw error;
     } finally {
       clearTimeout(timeoutId);
     }

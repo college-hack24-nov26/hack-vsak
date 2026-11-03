@@ -3,7 +3,7 @@ import type { ProviderCategory } from './VaultSecret.js';
 
 export interface IRoutingRule extends Document {
   _id: mongoose.Types.ObjectId;
-  projectId: mongoose.Types.ObjectId;
+  userId: mongoose.Types.ObjectId;
   category: ProviderCategory;
   primaryProviderId: string;
   fallbackProviderId: string;
@@ -15,9 +15,9 @@ export interface IRoutingRule extends Document {
 
 const RoutingRuleSchema = new Schema<IRoutingRule>(
   {
-    projectId: {
+    userId: {
       type: Schema.Types.ObjectId,
-      ref: 'Project',
+      ref: 'User',
       required: true,
       index: true,
     },
@@ -33,7 +33,7 @@ const RoutingRuleSchema = new Schema<IRoutingRule>(
     },
     fallbackProviderId: {
       type: String,
-      required: true,
+      default: 'none',
     },
     timeoutMs: {
       type: Number,
@@ -49,6 +49,6 @@ const RoutingRuleSchema = new Schema<IRoutingRule>(
   }
 );
 
-RoutingRuleSchema.index({ projectId: 1, category: 1 }, { unique: true });
+RoutingRuleSchema.index({ userId: 1, category: 1 }, { unique: true });
 
 export const RoutingRule: Model<IRoutingRule> = mongoose.model<IRoutingRule>('RoutingRule', RoutingRuleSchema);

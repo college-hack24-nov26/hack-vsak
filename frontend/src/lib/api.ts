@@ -26,6 +26,7 @@ export interface ApiResponse<T = any> {
 }
 
 // Token & Session Storage Helpers (Client-side)
+// Required tokens only: Auth Token (JWT Access), Refresh Token (JWT Refresh), OneAPI Developer Key (sk_live_...)
 export const authStorage = {
   getToken: () => (typeof window !== 'undefined' ? localStorage.getItem('oneapi_access_token') : null),
   setToken: (token: string) => {
@@ -43,43 +44,43 @@ export const authStorage = {
   setUser: (user: any) => {
     if (typeof window !== 'undefined') localStorage.setItem('oneapi_user', JSON.stringify(user));
   },
-  getProjectToken: () => (typeof window !== 'undefined' ? localStorage.getItem('oneapi_project_token') : null),
-  setProjectToken: (token: string) => {
-    if (typeof window !== 'undefined') localStorage.setItem('oneapi_project_token', token);
-  },
-  getProjectId: () => (typeof window !== 'undefined' ? localStorage.getItem('oneapi_project_id') : null),
-  setProjectId: (id: string) => {
-    if (typeof window !== 'undefined') localStorage.setItem('oneapi_project_id', id);
+  getApiKey: () => (typeof window !== 'undefined' ? localStorage.getItem('oneapi_developer_key') : null),
+  setApiKey: (key: string) => {
+    if (typeof window !== 'undefined') localStorage.setItem('oneapi_developer_key', key);
   },
   clear: () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('oneapi_access_token');
       localStorage.removeItem('oneapi_refresh_token');
       localStorage.removeItem('oneapi_user');
+      localStorage.removeItem('oneapi_developer_key');
       localStorage.removeItem('oneapi_project_token');
       localStorage.removeItem('oneapi_project_id');
     }
   },
 };
 
-// Generic fetch wrapper
+// Generic fetch wrapper with single unified Authorization header
 export async function fetchApi<T = any>(
   path: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   const url = `${API_BASE_URL.replace(/\/$/, '')}${path}`;
   const token = authStorage.getToken();
-  const projectToken = authStorage.getProjectToken();
+  const apiKey = authStorage.getApiKey();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
 
-  if (path.startsWith('/api/v1/proxy') && projectToken && !headers['Authorization']) {
-    headers['Authorization'] = `Bearer ${projectToken}`;
-  } else if (token && !headers['Authorization']) {
-    headers['Authorization'] = `Bearer ${token}`;
+  // Single unified authentication header: Bearer token or OneAPI developer key
+  if (!headers['Authorization']) {
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    } else if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
   }
 
   try {

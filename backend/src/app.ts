@@ -1,5 +1,7 @@
 import express from 'express';
 import type { Application, Request, Response, NextFunction } from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -9,8 +11,11 @@ import hpp from 'hpp';
 import { env } from './config/env.js';
 import { checkDbHealth } from './config/db.js';
 import { authRoutes } from './routes/auth.routes.js';
-import { projectRoutes } from './routes/project.routes.js';
+import { vaultRoutes } from './routes/vault.routes.js';
+import { routingRoutes } from './routes/routing.routes.js';
+import { dashboardRoutes } from './routes/dashboard.routes.js';
 import { proxyRoutes } from './routes/proxy.routes.js';
+import { listAvailableProviders } from './controllers/proxy.controller.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { generalLimiter } from './middleware/rateLimiter.js';
 
@@ -38,7 +43,7 @@ export function createApp(): Application {
     } else {
       res.setHeader(
         'Access-Control-Allow-Headers',
-        'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-project-token, x-api-key, x-user-id, x-user-email, x-project-id'
+        'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-api-key, x-oneapi-provider, x-user-id, x-user-email'
       );
     }
 
@@ -82,36 +87,39 @@ export function createApp(): Application {
     })
   );
 
-  // 4. Request Logging
+  // 5. Request Logging
   if (env.NODE_ENV !== 'test') {
     app.use(morgan('dev'));
   }
 
-  // 5. Compression
+  // 6. Compression
   app.use(compression());
 
-  // 6. Body Parsers & Cookie Parser
-  app.use(express.json({ limit: '10mb' }));
+  // 7. Body Parsers (Accepts JSON regardless of Content-Type header - zero required content-type)
+  app.use(express.json({ limit: '10mb', type: ['application/json', 'text/*', '*/*'] }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   app.use(cookieParser());
 
-  // 7. HTTP Parameter Pollution Protection
+  // 8. HTTP Parameter Pollution Protection
   app.use(hpp());
 
-  // 8. General Rate Limiter for all traffic
+  // 9. General Rate Limiter for all traffic
   app.use('/api', generalLimiter);
 
-  // 9. Root & Health Check Endpoints
+  // 10. Root & Health Check Endpoints
   app.get('/', (_req: Request, res: Response) => {
     res.json({
-      name: 'HackVsak Backend API',
+      name: 'OneAPI Gateway Backend API',
       status: 'operational',
       version: '1.0.0',
       timestamp: new Date().toISOString(),
       routes: {
         health: '/health',
         auth: '/api/v1/auth',
-        projects: '/api/v1/projects',
+        vault: '/api/v1/vault',
+        routing: '/api/v1/routing',
+        dashboard: '/api/v1/dashboard/overview',
+        providers: '/api/v1/providers',
         proxy: '/api/v1/proxy',
       },
     });
@@ -130,12 +138,22 @@ export function createApp(): Application {
     });
   });
 
-  // 10. Mount API Routes
+  // Dedicated Route: Return all available providers across 5 categories
+  app.get('/api/v1/providers', listAvailableProviders);
+
+  // Serve interactive client examples statically
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  app.use('/example', express.static(path.resolve(__dirname, '../../example')));
+
+  // 11. Mount API Routes
   app.use('/api/v1/auth', authRoutes);
-  app.use('/api/v1/projects', projectRoutes);
+  app.use('/api/v1/vault', vaultRoutes);
+  app.use('/api/v1/routing', routingRoutes);
+  app.use('/api/v1/dashboard', dashboardRoutes);
   app.use('/api/v1/proxy', proxyRoutes);
 
-  // 11. 404 Route Not Found Handler
+  // 12. 404 Route Not Found Handler
   app.use((req: Request, res: Response) => {
     res.status(404).json({
       success: false,
@@ -146,14 +164,17 @@ export function createApp(): Application {
           root: '/',
           health: '/health',
           auth: '/api/v1/auth',
-          projects: '/api/v1/projects',
+          vault: '/api/v1/vault',
+          routing: '/api/v1/routing',
+          dashboard: '/api/v1/dashboard/overview',
+          providers: '/api/v1/providers',
           proxy: '/api/v1/proxy',
         },
       },
     });
   });
 
-  // 12. Centralized Error Handler
+  // 13. Centralized Error Handler
   app.use(errorHandler);
 
   return app;

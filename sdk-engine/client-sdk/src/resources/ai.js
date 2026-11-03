@@ -27,4 +27,24 @@ export class AIResource {
 
     return new ChatResponse(data);
   }
+
+  /**
+   * Upload Document / File (PRD Section 3.1)
+   */
+  async upload_file({ file, purpose = "assistants", filename } = {}) {
+    if (!file) {
+      throw new Error("File buffer or content is required");
+    }
+
+    const data = await this.client.request("/proxy/ai/upload", {
+      method: "POST",
+      body: {
+        file: typeof file === "string" ? file : file.toString("base64"),
+        purpose,
+        filename: filename || `upload_${Date.now()}.bin`,
+      },
+    });
+
+    return data.data || data;
+  }
 }

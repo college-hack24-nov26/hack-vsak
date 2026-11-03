@@ -15,6 +15,18 @@ body {
   padding: 0;
 }
 
+/* Clean Borderless Design - All borders removed globally */
+*, ::before, ::after {
+  border-color: transparent !important;
+  border-width: 0 !important;
+}
+
+/* Accessible focus outlines for interactive elements */
+input:focus, textarea:focus, select:focus {
+  outline: 2px solid #0284c7 !important;
+  outline-offset: 1px !important;
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
@@ -24,9 +36,9 @@ body {
   background: #0f172a;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #1e293b;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #334155;
 }

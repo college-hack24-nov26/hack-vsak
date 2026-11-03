@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import {
   proxyAiChat,
+  proxyAiUpload,
   proxyMusicSearch,
   proxyWeatherCurrent,
   proxyNewsSearch,
   proxyEnvironmentAir,
   listAvailableProviders,
 } from '../controllers/proxy.controller.js';
-import { authenticateProject } from '../middleware/projectAuth.middleware.js';
+import { authenticateGateway } from '../middleware/gatewayAuth.middleware.js';
 
 const router = Router();
 
@@ -19,7 +20,8 @@ router.get('/', (_req, res) => {
     basePath: '/api/v1/proxy',
     endpoints: [
       { method: 'GET', path: '/api/v1/proxy/providers', description: 'List all 5 categories and registered providers' },
-      { method: 'POST', path: '/api/v1/proxy/ai/chat', description: 'AI Chat (Gemini -> Groq failover)' },
+      { method: 'POST', path: '/api/v1/proxy/ai/chat', description: 'AI Chat Proxy (Gemini -> Groq -> OpenRouter failover)' },
+      { method: 'POST', path: '/api/v1/proxy/ai/upload', description: 'AI Document/File Upload (PRD 3.1)' },
       { method: 'GET / POST', path: '/api/v1/proxy/music/search', description: 'Music Search (Deezer -> iTunes failover)' },
       { method: 'GET / POST', path: '/api/v1/proxy/weather/current', description: 'Current Weather (Open-Meteo -> Weatherstack failover)' },
       { method: 'GET / POST', path: '/api/v1/proxy/news/search', description: 'News Search (HackerNews -> Spaceflight failover)' },
@@ -30,15 +32,17 @@ router.get('/', (_req, res) => {
 
 router.get('/providers', listAvailableProviders);
 
-// 2. Gateway Proxy Routes (Requires OneAPI Project Token)
-router.post('/ai/chat', authenticateProject, proxyAiChat);
+// 2. Gateway Proxy Routes (Requires OneAPI Developer API Key or User Auth Token)
+router.post('/ai/chat', authenticateGateway, proxyAiChat);
+router.post('/ai/upload', authenticateGateway, proxyAiUpload);
+
 router.get('/ai/chat', (_req, res) => {
   res.status(200).json({
     success: true,
     endpoint: '/api/v1/proxy/ai/chat',
     method: 'POST',
     status: 'active',
-    description: 'AI Chat Proxy with automatic failover (Gemini -> Groq). Requires Authorization: Bearer <oneapi_dev_token>.',
+    description: 'AI Chat Proxy with automatic failover (Gemini -> Groq -> OpenRouter). Requires x-api-key: <sk_live_...> or Authorization: Bearer <token>.',
     exampleBody: {
       messages: [{ role: 'user', content: 'Explain quantum computing in two sentences.' }],
       model: 'default',
@@ -47,16 +51,22 @@ router.get('/ai/chat', (_req, res) => {
   });
 });
 
-router.get('/music/search', authenticateProject, proxyMusicSearch);
-router.post('/music/search', authenticateProject, proxyMusicSearch);
+router.get('/music/search', authenticateGateway, proxyMusicSearch);
+router.post('/music/search', authenticateGateway, proxyMusicSearch);
 
-router.get('/weather/current', authenticateProject, proxyWeatherCurrent);
-router.post('/weather/current', authenticateProject, proxyWeatherCurrent);
+router.get('/weather/current', authenticateGateway, proxyWeatherCurrent);
+router.post('/weather/current', authenticateGateway, proxyWeatherCurrent);
+router.get('/weather/forecast', authenticateGateway, proxyWeatherCurrent);
+router.post('/weather/forecast', authenticateGateway, proxyWeatherCurrent);
 
-router.get('/news/search', authenticateProject, proxyNewsSearch);
-router.post('/news/search', authenticateProject, proxyNewsSearch);
+router.get('/news/search', authenticateGateway, proxyNewsSearch);
+router.post('/news/search', authenticateGateway, proxyNewsSearch);
+router.get('/news/top', authenticateGateway, proxyNewsSearch);
+router.post('/news/top', authenticateGateway, proxyNewsSearch);
 
-router.get('/environment/air-quality', authenticateProject, proxyEnvironmentAir);
-router.post('/environment/air-quality', authenticateProject, proxyEnvironmentAir);
+router.get('/environment/air-quality', authenticateGateway, proxyEnvironmentAir);
+router.post('/environment/air-quality', authenticateGateway, proxyEnvironmentAir);
+router.get('/environment/cities', authenticateGateway, proxyEnvironmentAir);
+router.post('/environment/cities', authenticateGateway, proxyEnvironmentAir);
 
 export const proxyRoutes = router;

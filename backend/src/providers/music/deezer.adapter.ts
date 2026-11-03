@@ -25,6 +25,12 @@ export class DeezerMusicAdapter implements IProviderAdapter<UnifiedMusicRequest,
       const data = await response.json() as any;
       const rawTracks = data.data || [];
 
+      if (!Array.isArray(rawTracks) || rawTracks.length === 0) {
+        const err = new Error('Deezer catalog returned no playable tracks for this query/region. Triggering failover.');
+        (err as any).statusCode = 404;
+        throw err;
+      }
+
       const tracks = rawTracks.map((t: any) => ({
         id: String(t.id),
         title: t.title,

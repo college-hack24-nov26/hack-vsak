@@ -4,7 +4,7 @@ import { RoutingRule } from '../models/RoutingRule.js';
 import { VaultSecret } from '../models/VaultSecret.js';
 import { GatewayLog } from '../models/GatewayLog.js';
 import { decryptSecret } from '../utils/vaultCrypto.js';
-import type { IProject } from '../models/Project.js';
+import type { IUser } from '../models/User.js';
 
 export interface ProxyExecutionResult<T = any> {
   data: T;
@@ -20,51 +20,116 @@ export interface ProxyExecutionResult<T = any> {
 
 export class ProxyEngineService {
   /**
-   * Executes a unified proxy request with automatic failover.
+   * Executes a unified proxy request with automatic failover directly for the developer/user.
    */
   public async execute<TReq = any, TRes = any>({
-    project,
+    user,
     category,
     endpoint,
     params,
+    preferredProvider,
     ipAddress,
     userAgent,
   }: {
-    project: IProject;
+    user: IUser;
     category: ProviderCategory;
     endpoint: string;
     params: TReq;
+    preferredProvider?: string;
     ipAddress?: string;
     userAgent?: string;
   }): Promise<ProxyExecutionResult<TRes>> {
     const startTime = Date.now();
 
-    // 1. Resolve Routing Rule (configured primary and fallback providers)
-    let rule = await RoutingRule.findOne({ projectId: project._id, category });
+    // 1. Resolve Routing Rule (configured primary and fallback providers for this developer)
+    let rule = await RoutingRule.findOne({ userId: user._id, category });
     const defaults = providerRegistry.getDefaultRouting(category);
 
-    const primaryId = rule?.primaryProviderId || defaults.primary;
-    const fallbackId = rule?.fallbackProviderId || defaults.fallback;
-    const timeoutMs = rule?.timeoutMs || 5000;
+    let primaryId = rule?.primaryProviderId || defaults.primary;
+    let fallbackId = rule?.fallbackProviderId || defaults.fallback;
+
+    // Caller can explicitly target a specific provider (e.g. from interactive playground or headers)
+    if (preferredProvider && providerRegistry.has(category, preferredProvider)) {
+      if (preferredProvider !== primaryId) {
+        if (preferredProvider === fallbackId) {
+          fallbackId = primaryId;
+          primaryId = preferredProvider;
+        } else {
+          // preferredProvider is an additional provider (e.g. openrouter).
+          // Keep the existing fallback as the failover target.
+          primaryId = preferredProvider;
+        }
+      }
+    }
+
+    const defaultTimeout = category === 'ai' ? 25000 : 8000;
+    const timeoutMs = rule?.timeoutMs && rule.timeoutMs > 0 ? rule.timeoutMs : defaultTimeout;
     const retryStatuses = rule?.retryOnStatusCodes || [400, 401, 402, 403, 404, 410, 429, 500, 502, 503, 504];
 
-    // 2. Fetch primary provider adapter
+    // 2. Fetch provider adapters
     const primaryAdapter = providerRegistry.get(category, primaryId);
     if (!primaryAdapter) {
       throw new Error(`Primary provider "${primaryId}" not found for category "${category}".`);
     }
 
-    // 3. Resolve primary provider credentials from vault
-    const primaryConfig = await this.resolveProviderConfig(project, category, primaryId, timeoutMs);
+    const hasFallback = Boolean(fallbackId && fallbackId !== 'none' && fallbackId !== 'disabled');
+    const fallbackAdapter = hasFallback ? providerRegistry.get(category, fallbackId) : null;
 
-    // 4. Attempt Primary Execution
+    // 3. Resolve provider credentials from developer's vault
+    const primaryConfig = await this.resolveProviderConfig(user, category, primaryId, timeoutMs);
+    const fallbackConfig = (hasFallback && fallbackAdapter)
+      ? await this.resolveProviderConfig(user, category, fallbackId, timeoutMs)
+      : { timeoutMs };
+
+    // 4. Smart Direct Fallback:
+    // If primary provider requires an API key that is not configured, but fallback IS configured (or public),
+    // directly execute the configured fallback provider and return live content immediately!
+    const isPrimaryMissingKey = primaryAdapter.isKeyRequired && !primaryConfig.apiKey;
+    const isFallbackConfigured = hasFallback && fallbackAdapter && (!fallbackAdapter.isKeyRequired || Boolean(fallbackConfig.apiKey));
+
+    if (hasFallback && isPrimaryMissingKey && isFallbackConfigured && fallbackAdapter) {
+      console.log(
+        `[ProxyEngine] ⚡ Primary "${primaryId}" has no key configured, but fallback "${fallbackId}" is ready. Directly calling fallback "${fallbackAdapter.displayName}"...`
+      );
+
+      const fallbackData = await fallbackAdapter.execute(params, fallbackConfig);
+      const totalLatencyMs = Date.now() - startTime;
+
+      await this.logTelemetry({
+        userId: user._id,
+        category,
+        endpoint,
+        primaryProvider: primaryId,
+        finalProvider: fallbackId,
+        fallbackTriggered: true,
+        fallbackReason: 'PRIMARY_KEY_NOT_CONFIGURED',
+        latencyMs: totalLatencyMs,
+        statusCode: 200,
+        ipAddress,
+        userAgent,
+      });
+
+      return {
+        data: fallbackData,
+        meta: {
+          category,
+          primaryProvider: primaryId,
+          finalProvider: fallbackId,
+          fallbackTriggered: true,
+          fallbackReason: 'PRIMARY_KEY_NOT_CONFIGURED',
+          latencyMs: totalLatencyMs,
+        },
+      };
+    }
+
+    // 5. Attempt Primary Execution
     try {
       const data = await primaryAdapter.execute(params, primaryConfig);
       const latencyMs = Date.now() - startTime;
 
       // Log successful telemetry
       await this.logTelemetry({
-        projectId: project._id,
+        userId: user._id,
         category,
         endpoint,
         primaryProvider: primaryId,
@@ -96,18 +161,15 @@ export class ProxyEngineService {
         throw primaryError;
       }
 
-      // 5. Automatic Failover to Fallback Provider
+      // 6. Automatic Failover to Fallback Provider
       const fallbackReason = primaryError.name === 'AbortError' ? 'TIMEOUT_EXCEEDED' : `UPSTREAM_${primaryStatus}`;
-      const fallbackAdapter = providerRegistry.get(category, fallbackId);
 
-      if (!fallbackAdapter) {
-        console.error(`[ProxyEngine] Fallback provider "${fallbackId}" not found. Cannot failover.`);
+      if (!fallbackAdapter || !hasFallback) {
+        console.log(`[ProxyEngine] Fallback is disabled (${fallbackId || 'none'}) or not found. Returning direct primary error.`);
         throw primaryError;
       }
 
       console.log(`[ProxyEngine] 🔄 Automatically failing over to "${fallbackAdapter.displayName}" (${fallbackId})...`);
-
-      const fallbackConfig = await this.resolveProviderConfig(project, category, fallbackId, timeoutMs);
 
       try {
         const fallbackData = await fallbackAdapter.execute(params, fallbackConfig);
@@ -115,7 +177,7 @@ export class ProxyEngineService {
 
         // Log failover telemetry
         await this.logTelemetry({
-          projectId: project._id,
+          userId: user._id,
           category,
           endpoint,
           primaryProvider: primaryId,
@@ -144,7 +206,7 @@ export class ProxyEngineService {
         console.error(`[ProxyEngine] Both primary and fallback providers failed for ${category}.`);
 
         await this.logTelemetry({
-          projectId: project._id,
+          userId: user._id,
           category,
           endpoint,
           primaryProvider: primaryId,
@@ -163,16 +225,16 @@ export class ProxyEngineService {
   }
 
   /**
-   * Resolves decrypted provider credentials from VaultSecret.
+   * Resolves decrypted provider credentials from developer's VaultSecret.
    */
   private async resolveProviderConfig(
-    project: IProject,
+    user: IUser,
     category: ProviderCategory,
     providerId: string,
     timeoutMs: number
   ): Promise<ProviderConfig> {
     const secret = await VaultSecret.findOne({
-      projectId: project._id,
+      userId: user._id,
       category,
       providerId,
     }).select('+encryptedCombined');
