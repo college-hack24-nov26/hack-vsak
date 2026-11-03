@@ -78,7 +78,14 @@ export class OneAPI {
         signal: controller.signal,
       });
 
-      const data = await response.json().catch(() => ({}));
+      const contentType = response.headers.get("content-type") || "";
+
+      const data = contentType.includes("application/json")
+        ? await response.json()
+        : await response.text();
+
+      const responseData =
+        data && typeof data === "object" ? data : {};
 
       // Extract telemetry headers if present
       const meta = data._oneapi || {
