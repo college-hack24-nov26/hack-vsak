@@ -3,6 +3,7 @@ import mongoose, { Document, Model, Schema } from 'mongoose';
 export interface IApiKeyDoc extends Document {
   _id: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
+  projectId?: mongoose.Types.ObjectId;
   name: string;
   keyPrefix: string;
   keyHash: string;
@@ -22,6 +23,11 @@ export const ApiKeySchema = new Schema<IApiKeyDoc>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+      index: true,
+    },
+    projectId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Project',
       index: true,
     },
     name: {
@@ -72,8 +78,9 @@ export const ApiKeySchema = new Schema<IApiKeyDoc>(
   }
 );
 
-// Compound index for querying active keys by user
+// Compound indexes for querying active keys by user, project, and token hash
 ApiKeySchema.index({ userId: 1, isActive: 1 });
+ApiKeySchema.index({ projectId: 1, isActive: 1 });
 ApiKeySchema.index({ keyHash: 1, isActive: 1 });
 
 export const ApiKey: Model<IApiKeyDoc> =

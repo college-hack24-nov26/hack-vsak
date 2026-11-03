@@ -107,6 +107,15 @@ export default function ProvidersPage() {
 
   useEffect(() => {
     loadVaultAndRouting();
+
+    const handleProjectChanged = () => {
+      loadVaultAndRouting();
+    };
+    window.addEventListener('oneapi_project_changed', handleProjectChanged);
+
+    return () => {
+      window.removeEventListener('oneapi_project_changed', handleProjectChanged);
+    };
   }, []);
 
   // Save Provider Secret to AES-256 Vault

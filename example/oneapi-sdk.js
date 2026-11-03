@@ -237,10 +237,27 @@
   }
 
   class OneAPI {
-    constructor({ apiKey = '', baseURL = 'http://localhost:5000/api/v1', timeout = 30000 } = {}) {
+    constructor(options = {}, projectIdArg = '') {
+      let apiKey = '';
+      let projectId = '';
+      let timeout = 30000;
+
+      if (typeof options === 'string') {
+        apiKey = options;
+        projectId = projectIdArg || '';
+      } else if (options && typeof options === 'object') {
+        apiKey = options.apiKey || '';
+        projectId = options.projectId || '';
+        timeout = options.timeout || 30000;
+      }
+
       this.apiKey = apiKey;
-      this.baseURL = (baseURL || 'http://localhost:5000/api/v1').replace(/\/+$/, '');
+      this.projectId = projectId;
       this.timeout = timeout;
+
+      // Base URL is resolved automatically by the SDK without manual configuration
+      const winBase = typeof window !== 'undefined' ? (window.__ONEAPI_BASE_URL__ || '') : '';
+      this.baseURL = (winBase || 'http://localhost:5000/api/v1').replace(/\/+$/, '');
 
       this.ai = new AIResource(this);
       this.weather = new WeatherResource(this);
@@ -259,6 +276,10 @@
         if (this.apiKey) {
           reqHeaders['Authorization'] = `Bearer ${this.apiKey}`;
           reqHeaders['x-api-key'] = this.apiKey;
+        }
+
+        if (this.projectId && !reqHeaders['x-project-id']) {
+          reqHeaders['x-project-id'] = this.projectId;
         }
 
         if (body !== undefined && !reqHeaders['Content-Type']) {

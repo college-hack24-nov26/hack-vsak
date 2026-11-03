@@ -5,7 +5,7 @@
  */
 
 const STORAGE_KEYS = {
-  BASE_URL: 'oneapi_chat_base_url',
+  PROJECT_ID: 'oneapi_chat_project_id',
   API_KEY: 'oneapi_chat_api_key',
   SESSIONS: 'oneapi_chat_sessions',
   ACTIVE_SESSION_ID: 'oneapi_chat_active_session',
@@ -42,7 +42,8 @@ const SUGGESTIONS = [
 
 // App State
 const state = {
-  baseUrl: localStorage.getItem(STORAGE_KEYS.BASE_URL) || DEFAULT_CONFIG.BASE_URL,
+  baseUrl: DEFAULT_CONFIG.BASE_URL,
+  projectId: localStorage.getItem(STORAGE_KEYS.PROJECT_ID) || '',
   apiKey: localStorage.getItem(STORAGE_KEYS.API_KEY) || '',
   selectedModel: localStorage.getItem(STORAGE_KEYS.MODEL) || DEFAULT_CONFIG.MODEL,
   sessions: JSON.parse(localStorage.getItem(STORAGE_KEYS.SESSIONS) || '[]'),
@@ -74,7 +75,7 @@ const elements = {
   credentialsPill: document.getElementById('credentialsPill'),
   configModalTrigger: document.getElementById('configModalTrigger'),
   modalCloseBtn: document.getElementById('modalCloseBtn'),
-  baseUrlInput: document.getElementById('baseUrlInput'),
+  projectIdInput: document.getElementById('projectIdInput'),
   apiKeyInput: document.getElementById('apiKeyInput'),
   saveCredentialsBtn: document.getElementById('saveCredentialsBtn'),
   sidebarKeyDisplay: document.getElementById('sidebarKeyDisplay'),
@@ -379,6 +380,10 @@ async function handleSendMessage() {
       headers['Authorization'] = `Bearer ${state.apiKey}`;
     }
 
+    if (state.projectId) {
+      headers['x-project-id'] = state.projectId;
+    }
+
     if (state.selectedModel !== 'auto') {
       headers['x-oneapi-provider'] = state.selectedModel;
     }
@@ -561,7 +566,7 @@ function setupEventListeners() {
 
   // Credentials Modal
   const openModal = () => {
-    elements.baseUrlInput.value = state.baseUrl;
+    if (elements.projectIdInput) elements.projectIdInput.value = state.projectId;
     elements.apiKeyInput.value = state.apiKey;
     elements.credentialsModal.classList.add('open');
   };
@@ -575,13 +580,13 @@ function setupEventListeners() {
   elements.modalCloseBtn.addEventListener('click', closeModal);
 
   elements.saveCredentialsBtn.addEventListener('click', () => {
-    const newBaseUrl = elements.baseUrlInput.value.trim() || DEFAULT_CONFIG.BASE_URL;
+    const newProjectId = elements.projectIdInput ? elements.projectIdInput.value.trim() : '';
     const newKey = elements.apiKeyInput.value.trim();
 
-    state.baseUrl = newBaseUrl;
+    state.projectId = newProjectId;
     state.apiKey = newKey;
 
-    localStorage.setItem(STORAGE_KEYS.BASE_URL, newBaseUrl);
+    localStorage.setItem(STORAGE_KEYS.PROJECT_ID, newProjectId);
     localStorage.setItem(STORAGE_KEYS.API_KEY, newKey);
 
     updateCredentialsDisplay();

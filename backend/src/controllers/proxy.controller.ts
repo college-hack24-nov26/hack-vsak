@@ -63,6 +63,7 @@ export async function proxyAiChat(
       preferredProvider,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
+      projectId: req.projectId,
     });
 
     setProxyHeaders(res, result.meta);
@@ -156,6 +157,7 @@ export async function proxyMusicSearch(
       preferredProvider,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
+      projectId: req.projectId,
     });
 
     setProxyHeaders(res, result.meta);
@@ -207,6 +209,7 @@ export async function proxyWeatherCurrent(
       preferredProvider,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
+      projectId: req.projectId,
     });
 
     setProxyHeaders(res, result.meta);
@@ -258,6 +261,7 @@ export async function proxyNewsSearch(
       preferredProvider,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
+      projectId: req.projectId,
     });
 
     setProxyHeaders(res, result.meta);
@@ -309,6 +313,7 @@ export async function proxyEnvironmentAir(
       preferredProvider,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
+      projectId: req.projectId,
     });
 
     setProxyHeaders(res, result.meta);

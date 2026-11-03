@@ -74,6 +74,15 @@ export default function ApiKeysPage() {
 
   useEffect(() => {
     loadData();
+
+    const handleProjectChanged = () => {
+      loadData();
+    };
+    window.addEventListener('oneapi_project_changed', handleProjectChanged);
+
+    return () => {
+      window.removeEventListener('oneapi_project_changed', handleProjectChanged);
+    };
   }, []);
 
   const handleCreateApiKey = async (e: React.FormEvent) => {
@@ -82,11 +91,13 @@ export default function ApiKeysPage() {
     setFreshRawApiKey(null);
 
     try {
+      const activeProjId = authStorage.getProjectId();
       const res = await fetchApi('/api/v1/auth/create-api-key', {
         method: 'POST',
         body: JSON.stringify({
           name: newKeyName.trim() || 'Production Key',
           scopes: ['read', 'write', 'proxy'],
+          ...(activeProjId && { projectId: activeProjId }),
         }),
       });
 

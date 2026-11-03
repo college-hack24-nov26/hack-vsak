@@ -114,6 +114,15 @@ export default function RoutingConfigPage() {
 
   useEffect(() => {
     loadData();
+
+    const handleProjectChanged = () => {
+      loadData();
+    };
+    window.addEventListener('oneapi_project_changed', handleProjectChanged);
+
+    return () => {
+      window.removeEventListener('oneapi_project_changed', handleProjectChanged);
+    };
   }, []);
 
   const showToast = (type: 'success' | 'error', text: string) => {

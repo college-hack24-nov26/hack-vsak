@@ -30,6 +30,7 @@ export class ProxyEngineService {
     preferredProvider,
     ipAddress,
     userAgent,
+    projectId,
   }: {
     user: IUser;
     category: ProviderCategory;
@@ -38,11 +39,18 @@ export class ProxyEngineService {
     preferredProvider?: string;
     ipAddress?: string;
     userAgent?: string;
+    projectId?: any;
   }): Promise<ProxyExecutionResult<TRes>> {
     const startTime = Date.now();
 
-    // 1. Resolve Routing Rule (configured primary and fallback providers for this developer)
-    let rule = await RoutingRule.findOne({ userId: user._id, category });
+    // 1. Resolve Routing Rule (configured primary and fallback providers for this developer and project)
+    let rule = null;
+    if (projectId) {
+      rule = await RoutingRule.findOne({ projectId, category });
+    }
+    if (!rule) {
+      rule = await RoutingRule.findOne({ userId: user._id, category });
+    }
     const defaults = providerRegistry.getDefaultRouting(category);
 
     let primaryId = rule?.primaryProviderId || defaults.primary;
@@ -79,7 +87,7 @@ export class ProxyEngineService {
       throw new Error(`Primary provider "${primaryId}" not found for category "${category}".`);
     }
 
-    const primaryConfig = await this.resolveProviderConfig(user, category, primaryId, timeoutMs);
+    const primaryConfig = await this.resolveProviderConfig(user, category, primaryId, timeoutMs, projectId);
 
     // 3. Smart Direct Fallback Cascade:
     // If primary provider requires an API key that is not configured, find the first available fallback that is ready
@@ -90,7 +98,7 @@ export class ProxyEngineService {
         const fbAdapter = providerRegistry.get(category, fbId);
         if (!fbAdapter) continue;
 
-        const fbConfig = await this.resolveProviderConfig(user, category, fbId, timeoutMs);
+        const fbConfig = await this.resolveProviderConfig(user, category, fbId, timeoutMs, projectId);
         const isReady = !fbAdapter.isKeyRequired || Boolean(fbConfig.apiKey);
 
         if (isReady) {
@@ -103,6 +111,7 @@ export class ProxyEngineService {
 
           await this.logTelemetry({
             userId: user._id,
+            projectId,
             category,
             endpoint,
             primaryProvider: primaryId,
@@ -138,6 +147,7 @@ export class ProxyEngineService {
       // Log successful telemetry
       await this.logTelemetry({
         userId: user._id,
+        projectId,
         category,
         endpoint,
         primaryProvider: primaryId,
@@ -189,7 +199,7 @@ export class ProxyEngineService {
         const candidateAdapter = providerRegistry.get(category, candidateId);
         if (!candidateAdapter) continue;
 
-        const candidateConfig = await this.resolveProviderConfig(user, category, candidateId, timeoutMs);
+        const candidateConfig = await this.resolveProviderConfig(user, category, candidateId, timeoutMs, projectId);
         if (candidateAdapter.isKeyRequired && !candidateConfig.apiKey) {
           console.log(`[ProxyEngine] Skipping fallback "${candidateId}" (requires key that is not in vault).`);
           continue;
@@ -205,6 +215,7 @@ export class ProxyEngineService {
 
           await this.logTelemetry({
             userId: user._id,
+            projectId,
             category,
             endpoint,
             primaryProvider: primaryId,
@@ -242,6 +253,7 @@ export class ProxyEngineService {
 
       await this.logTelemetry({
         userId: user._id,
+        projectId,
         category,
         endpoint,
         primaryProvider: primaryId,
@@ -265,13 +277,25 @@ export class ProxyEngineService {
     user: IUser,
     category: ProviderCategory,
     providerId: string,
-    timeoutMs: number
+    timeoutMs: number,
+    projectId?: any
   ): Promise<ProviderConfig> {
-    const secret = await VaultSecret.findOne({
-      userId: user._id,
-      category,
-      providerId,
-    }).select('+encryptedCombined');
+    let secret = null;
+    if (projectId) {
+      secret = await VaultSecret.findOne({
+        projectId,
+        category,
+        providerId,
+      }).select('+encryptedCombined');
+    }
+
+    if (!secret) {
+      secret = await VaultSecret.findOne({
+        userId: user._id,
+        category,
+        providerId,
+      }).select('+encryptedCombined');
+    }
 
     let apiKey: string | undefined;
     if (secret?.encryptedCombined) {

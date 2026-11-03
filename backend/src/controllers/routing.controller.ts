@@ -2,22 +2,34 @@ import type { Response, NextFunction } from 'express';
 import { RoutingRule } from '../models/RoutingRule.js';
 import { providerRegistry } from '../providers/registry.js';
 import type { ProviderCategory } from '../models/VaultSecret.js';
-import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import type { ProjectAuthenticatedRequest } from '../middleware/projectOwnership.middleware.js';
 
 const CATEGORIES: ProviderCategory[] = ['ai', 'music', 'weather', 'news', 'environment'];
 
 /**
  * 1. GET /api/v1/routing
- * Retrieves all priority routing rules for the developer across the 5 categories.
+ * Retrieves all priority routing rules for the developer across the 5 categories for the active project.
  */
 export async function getRoutingRules(
-  req: AuthenticatedRequest,
+  req: ProjectAuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
     const user = req.user!;
-    const savedRules = await RoutingRule.find({ userId: user._id });
+    const targetProjectId = req.projectId;
+    const isDefault = req.project?.isDefault;
+
+    const filter: Record<string, any> = { userId: user._id };
+    if (targetProjectId) {
+      if (isDefault) {
+        filter.$or = [{ projectId: targetProjectId }, { projectId: { $exists: false } }, { projectId: null }];
+      } else {
+        filter.projectId = targetProjectId;
+      }
+    }
+
+    const savedRules = await RoutingRule.find(filter);
 
     const rules = CATEGORIES.map((cat) => {
       const existing = savedRules.find((r) => r.category === cat);
@@ -34,6 +46,7 @@ export async function getRoutingRules(
 
       return {
         category: cat,
+        projectId: targetProjectId,
         primaryProviderId: existing?.primaryProviderId || defaults.primary,
         fallbackProviderId: existing?.fallbackProviderId ?? defaults.fallback,
         fallbackProviderIds: fallbackList,
@@ -47,6 +60,7 @@ export async function getRoutingRules(
     res.status(200).json({
       success: true,
       data: {
+        projectId: targetProjectId,
         rules,
         routingRules: rules,
         count: rules.length,
@@ -59,16 +73,17 @@ export async function getRoutingRules(
 
 /**
  * 2. PUT /api/v1/routing
- * Updates or sets the primary and fallback providers for a specific category.
+ * Updates or sets the primary and fallback providers for a specific category within the active project.
  * If fallbackProviderId is 'none' or empty, fallback failover is disabled (direct only).
  */
 export async function updateRoutingRule(
-  req: AuthenticatedRequest,
+  req: ProjectAuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
     const user = req.user!;
+    const targetProjectId = req.projectId!;
     const { category, primaryProviderId, fallbackProviderId, fallbackProviderIds, timeoutMs, retryOnStatusCodes } = req.body;
 
     if (!category || !primaryProviderId) {
@@ -133,7 +148,7 @@ export async function updateRoutingRule(
     const effectiveFallback = effectiveFallbacks[0] || 'none';
 
     const rule = await RoutingRule.findOneAndUpdate(
-      { userId: user._id, category },
+      { userId: user._id, projectId: targetProjectId, category },
       {
         primaryProviderId,
         fallbackProviderId: effectiveFallback,
@@ -146,8 +161,9 @@ export async function updateRoutingRule(
 
     res.status(200).json({
       success: true,
-      message: `Routing for category "${category}" updated: Primary=${primaryProviderId}, Fallbacks=[${effectiveFallbacks.join(' -> ')}]`,
+      message: `Routing for category "${category}" in project updated: Primary=${primaryProviderId}, Fallbacks=[${effectiveFallbacks.join(' -> ')}]`,
       data: {
+        projectId: targetProjectId,
         rule,
         routingRule: rule,
       },
