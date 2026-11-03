@@ -11,6 +11,8 @@ export interface IRoutingRule extends Document {
   fallbackProviderIds: string[];
   timeoutMs: number;
   retryOnStatusCodes: number[];
+  model?: string;
+  models?: Record<string, string>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,6 +55,14 @@ const RoutingRuleSchema = new Schema<IRoutingRule>(
     retryOnStatusCodes: {
       type: [Number],
       default: [429, 500, 502, 503, 504],
+    },
+    model: {
+      type: String,
+      default: '',
+    },
+    models: {
+      type: Schema.Types.Mixed,
+      default: {},
     },
   },
   {

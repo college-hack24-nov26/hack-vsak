@@ -60,9 +60,14 @@ function OverviewContent() {
       const storedProject = authStorage.getActiveProject();
       if (storedProject) setCurrentProject(storedProject);
 
+      const targetProjectId = paramProjectId || storedProject?._id || storedProject?.id;
+      const overviewPath = targetProjectId
+        ? `/api/v1/dashboard/overview?projectId=${encodeURIComponent(targetProjectId)}`
+        : '/api/v1/dashboard/overview';
+
       const [userRes, overviewRes] = await Promise.all([
         fetchApi('/api/v1/auth/me').catch(() => null),
-        fetchApi('/api/v1/dashboard/overview').catch(() => null),
+        fetchApi(overviewPath).catch(() => null),
       ]);
 
       if (userRes?.success && userRes.data?.user) {

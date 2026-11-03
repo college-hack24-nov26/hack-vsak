@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   KeyRound,
   Plus,
@@ -15,12 +16,14 @@ import {
   EyeOff,
   Sparkles,
   Zap,
+  Loader2,
 } from 'lucide-react';
 import { authStorage, fetchApi } from '@/lib/api';
 
 const STORAGE_LATEST_RAW_KEY = 'oneapi_latest_raw_developer_api_key';
 
-export default function ApiKeysPage() {
+function ApiKeysContent() {
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<any>(null);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [newKeyName, setNewKeyName] = useState('');
@@ -44,6 +47,11 @@ export default function ApiKeysPage() {
       const stored = authStorage.getUser();
       if (stored) setUser(stored);
 
+      const paramProjectId = searchParams.get('project') || searchParams.get('projectId');
+      if (paramProjectId) {
+        authStorage.setProjectId(paramProjectId);
+      }
+
       // Restore last generated raw key if stored in session
       if (typeof window !== 'undefined') {
         const savedRaw = localStorage.getItem(STORAGE_LATEST_RAW_KEY);
@@ -52,9 +60,14 @@ export default function ApiKeysPage() {
         }
       }
 
+      const targetProjectId = paramProjectId || authStorage.getProjectId();
+      const keysPath = targetProjectId
+        ? `/api/v1/auth/api-keys?projectId=${encodeURIComponent(targetProjectId)}`
+        : '/api/v1/auth/api-keys';
+
       const [userRes, keysRes] = await Promise.all([
         fetchApi('/api/v1/auth/me').catch(() => null),
-        fetchApi('/api/v1/auth/api-keys').catch(() => null),
+        fetchApi(keysPath).catch(() => null),
       ]);
 
       if (userRes?.success && userRes.data?.user) {
@@ -83,7 +96,7 @@ export default function ApiKeysPage() {
     return () => {
       window.removeEventListener('oneapi_project_changed', handleProjectChanged);
     };
-  }, []);
+  }, [searchParams]);
 
   const handleCreateApiKey = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -425,5 +438,20 @@ export default function ApiKeysPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ApiKeysPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 text-center text-slate-400 flex items-center justify-center gap-2">
+          <Loader2 className="w-5 h-5 animate-spin text-sky-400" />
+          Loading project API keys...
+        </div>
+      }
+    >
+      <ApiKeysContent />
+    </Suspense>
   );
 }

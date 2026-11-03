@@ -49,8 +49,15 @@ export async function getDashboardOverview(
       ]),
     ]);
 
-    const legacyActiveKeysCount = (user.apiKeys || []).filter((k) => k.isActive).length;
-    const activeKeysCount = activeDbKeysCount > 0 ? activeDbKeysCount : legacyActiveKeysCount;
+    let activeKeysCount = activeDbKeysCount;
+    // For non-default projects (e.g. newly created projects), keys must be strictly 0 if activeDbKeysCount is 0.
+    // Legacy fallback is only evaluated on the default project when the developer has never had any keys in the dedicated ApiKey collection.
+    if (activeDbKeysCount === 0 && isDefault) {
+      const hasAnyDedicatedKeys = await ApiKey.exists({ userId: user._id });
+      if (!hasAnyDedicatedKeys) {
+        activeKeysCount = (user.apiKeys || []).filter((k) => k.isActive).length;
+      }
+    }
     const fallbackRate = totalRequests > 0 ? ((totalFallbacks / totalRequests) * 100).toFixed(1) + '%' : '0.0%';
     const averageLatencyMs = latencyAgg[0]?.avgLatency ? Math.round(latencyAgg[0].avgLatency) : 0;
 

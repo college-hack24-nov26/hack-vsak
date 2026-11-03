@@ -62,6 +62,11 @@ describe('11. OneAPI Project Isolation & Multi-Project Data Model Tests', () => 
     assert.equal(res.status, 401);
   });
 
+  it('GET /api/v1/dashboard/overview with project query should require authentication (401)', async () => {
+    const res = await fetch(`${baseUrl}/api/v1/dashboard/overview?projectId=65f1a2b3c4d5e6f7a8b9c0d1`);
+    assert.equal(res.status, 401);
+  });
+
   it('Project data model should define proper indexes and schema constraints', () => {
     assert.ok(Project.schema.paths['userId']);
     assert.ok(Project.schema.paths['name']);

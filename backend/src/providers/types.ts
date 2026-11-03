@@ -182,5 +182,7 @@ export interface IProviderAdapter<TReq = any, TRes = any> {
   category: ProviderCategory;
   displayName: string;
   isKeyRequired: boolean;
+  supportedModels?: string[];
+  defaultModel?: string;
   execute(params: TReq, config: ProviderConfig): Promise<TRes>;
 }

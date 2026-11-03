@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Cpu,
   Shield,
@@ -20,8 +21,9 @@ import {
   Ban,
   ChevronDown,
   ArrowRight,
+  Loader2,
 } from 'lucide-react';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, authStorage } from '@/lib/api';
 import { PROVIDERS_CATALOG, ProviderCatalogItem, Category } from '@/lib/providersCatalog';
 
 const CATEGORY_THEMES: Record<
@@ -65,7 +67,8 @@ const CATEGORY_THEMES: Record<
   },
 };
 
-export default function ProvidersPage() {
+function ProvidersContent() {
+  const searchParams = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [vaultSecrets, setVaultSecrets] = useState<any[]>([]);
   const [routingRules, setRoutingRules] = useState<any[]>([]);
@@ -74,6 +77,8 @@ export default function ProvidersPage() {
   // Modal State
   const [activeConfigProvider, setActiveConfigProvider] = useState<ProviderCatalogItem | null>(null);
   const [configApiKeyInput, setConfigApiKeyInput] = useState('');
+  const [configModelInput, setConfigModelInput] = useState('');
+  const [testModelInput, setTestModelInput] = useState('');
   const [showConfigApiKey, setShowConfigApiKey] = useState(false);
   const [savingConfigKey, setSavingConfigKey] = useState(false);
   const [configMsg, setConfigMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -82,12 +87,40 @@ export default function ProvidersPage() {
   const [testingProviderId, setTestingProviderId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<any>(null);
 
+  const openConfigModal = (provider: ProviderCatalogItem) => {
+    setActiveConfigProvider(provider);
+    setConfigApiKeyInput('');
+    const existingSecret = vaultSecrets.find(
+      (s) =>
+        s.category?.toLowerCase() === provider.category?.toLowerCase() &&
+        s.providerId?.toLowerCase() === provider.id?.toLowerCase()
+    );
+    const activeModel = existingSecret?.metadata?.model || provider.defaultModel || '';
+    setConfigModelInput(activeModel);
+    setTestModelInput(activeModel);
+    setConfigMsg(null);
+    setTestResult(null);
+  };
+
   const loadVaultAndRouting = async () => {
     setLoading(true);
     try {
+      const paramProjectId = searchParams.get('project') || searchParams.get('projectId');
+      if (paramProjectId) {
+        authStorage.setProjectId(paramProjectId);
+      }
+
+      const targetProjectId = paramProjectId || authStorage.getProjectId();
+      const vaultPath = targetProjectId
+        ? `/api/v1/vault?projectId=${encodeURIComponent(targetProjectId)}`
+        : '/api/v1/vault';
+      const routingPath = targetProjectId
+        ? `/api/v1/routing?projectId=${encodeURIComponent(targetProjectId)}`
+        : '/api/v1/routing';
+
       const [vaultRes, routingRes] = await Promise.all([
-        fetchApi('/api/v1/vault').catch(() => null),
-        fetchApi('/api/v1/routing').catch(() => null),
+        fetchApi(vaultPath).catch(() => null),
+        fetchApi(routingPath).catch(() => null),
       ]);
 
       if (vaultRes?.success) {
@@ -116,12 +149,20 @@ export default function ProvidersPage() {
     return () => {
       window.removeEventListener('oneapi_project_changed', handleProjectChanged);
     };
-  }, []);
+  }, [searchParams]);
 
-  // Save Provider Secret to AES-256 Vault
+  // Save Provider Secret & Preferred Model to AES-256 Vault
   const handleSaveProviderKey = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeConfigProvider || !configApiKeyInput.trim()) return;
+    if (!activeConfigProvider) return;
+
+    const existingSecret = vaultSecrets.find(
+      (s) =>
+        s.category?.toLowerCase() === activeConfigProvider.category?.toLowerCase() &&
+        s.providerId?.toLowerCase() === activeConfigProvider.id?.toLowerCase()
+    );
+
+    if (!configApiKeyInput.trim() && !existingSecret && activeConfigProvider.requiresKey) return;
 
     setSavingConfigKey(true);
     setConfigMsg(null);
@@ -132,14 +173,15 @@ export default function ProvidersPage() {
         body: JSON.stringify({
           category: activeConfigProvider.category,
           providerId: activeConfigProvider.id,
-          apiKey: configApiKeyInput.trim(),
+          ...(configApiKeyInput.trim() ? { apiKey: configApiKeyInput.trim() } : {}),
+          model: configModelInput.trim() || undefined,
         }),
       });
 
       if (res.success) {
         setConfigMsg({
           type: 'success',
-          text: `Credential for ${activeConfigProvider.name} safely encrypted with AES-256-GCM.`,
+          text: `Configuration and model for ${activeConfigProvider.name} safely stored in AES-256 Vault.`,
         });
         setConfigApiKeyInput('');
         await loadVaultAndRouting();
@@ -216,7 +258,7 @@ export default function ProvidersPage() {
   };
 
   // Test Provider Live Call (Works for AI, Weather, Music, News, Environment)
-  const handleTestProvider = async (provider: ProviderCatalogItem) => {
+  const handleTestProvider = async (provider: ProviderCatalogItem, customModel?: string) => {
     setTestingProviderId(provider.id);
     setTestResult(null);
 
@@ -226,11 +268,19 @@ export default function ProvidersPage() {
       let method = 'GET';
       let body: any = undefined;
 
+      const storedSecret = vaultSecrets.find(
+        (s) =>
+          s.category?.toLowerCase() === provider.category?.toLowerCase() &&
+          s.providerId?.toLowerCase() === provider.id?.toLowerCase()
+      );
+      const targetModel = customModel || storedSecret?.metadata?.model || provider.defaultModel;
+
       if (provider.category === 'ai') {
         endpoint = '/api/v1/proxy/ai/chat';
         method = 'POST';
         body = JSON.stringify({
           provider: provider.id,
+          model: targetModel,
           messages: [{ role: 'user', content: 'Respond in 1 short sentence: What is OneAPI failover?' }],
         });
       } else if (provider.category === 'weather') {
@@ -516,7 +566,49 @@ export default function ProvidersPage() {
                       <span className="text-slate-500">Standby Route</span>
                     )}
                   </div>
+
+                  {/* AI Model Status */}
+                  {provider.category === 'ai' && (
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-900">
+                      <span className="text-slate-500">Active Model:</span>
+                      <span className="text-sky-300 font-bold font-mono text-[11px] bg-sky-950/40 px-2 py-0.5 rounded border border-sky-800/40">
+                        {storedSecret?.metadata?.model || provider.defaultModel || 'gemini-2.5-flash'}
+                      </span>
+                    </div>
+                  )}
                 </div>
+
+                {/* AI Supported Models Chips */}
+                {provider.category === 'ai' && provider.supportedModels && (
+                  <div className="mb-4">
+                    <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1.5 flex items-center justify-between">
+                      <span>Supported Models ({provider.supportedModels.length})</span>
+                      <span className="text-slate-500 font-normal">Click Configure to select</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {provider.supportedModels.slice(0, 4).map((m) => {
+                        const isCurrent = (storedSecret?.metadata?.model || provider.defaultModel) === m;
+                        return (
+                          <span
+                            key={m}
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                              isCurrent
+                                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold'
+                                : 'bg-slate-900 text-slate-400'
+                            }`}
+                          >
+                            {m}
+                          </span>
+                        );
+                      })}
+                      {provider.supportedModels.length > 4 && (
+                        <span className="px-1.5 py-0.5 text-[10px] text-slate-500 font-mono">
+                          +{provider.supportedModels.length - 4} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Inline Test Result Banner (if tested on card) */}
                 {currentTest && (
@@ -554,12 +646,7 @@ export default function ProvidersPage() {
                 {/* Connect / Config Modal Trigger */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setActiveConfigProvider(provider);
-                    setConfigMsg(null);
-                    setConfigApiKeyInput('');
-                    setTestResult(null);
-                  }}
+                  onClick={() => openConfigModal(provider)}
                   className="flex-1 py-2 px-3 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-semibold text-xs rounded-xl shadow-md shadow-sky-600/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Sliders className="w-3 h-3" />
@@ -625,38 +712,98 @@ export default function ProvidersPage() {
               </div>
             )}
 
-            {/* Step A: API Key Vault */}
+            {/* Step A: API Key Vault & AI Model Configuration */}
             {activeConfigProvider.requiresKey ? (
-              <form onSubmit={handleSaveProviderKey} className="space-y-3">
-                <label className="block text-xs font-semibold text-slate-300">
-                  AES-256 Encrypted Credential (Key Vault)
-                </label>
-                <div className="relative">
-                  <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                  <input
-                    type={showConfigApiKey ? 'text' : 'password'}
-                    placeholder={`Paste ${activeConfigProvider.name} API key...`}
-                    value={configApiKeyInput}
-                    onChange={(e) => setConfigApiKeyInput(e.target.value)}
-                    required
-                    className="w-full pl-10 pr-10 py-2.5 bg-slate-900 rounded-xl text-xs font-mono text-white placeholder:text-slate-500 focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfigApiKey(!showConfigApiKey)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 cursor-pointer"
-                  >
-                    {showConfigApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+              <form onSubmit={handleSaveProviderKey} className="space-y-3.5">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-slate-300">
+                      AES-256 Encrypted Credential (Key Vault)
+                    </label>
+                    {vaultSecrets.some(
+                      (s) =>
+                        s.category?.toLowerCase() === activeConfigProvider.category?.toLowerCase() &&
+                        s.providerId?.toLowerCase() === activeConfigProvider.id?.toLowerCase()
+                    ) && (
+                      <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Key Stored
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <input
+                      type={showConfigApiKey ? 'text' : 'password'}
+                      placeholder={
+                        vaultSecrets.some(
+                          (s) =>
+                            s.category?.toLowerCase() === activeConfigProvider.category?.toLowerCase() &&
+                            s.providerId?.toLowerCase() === activeConfigProvider.id?.toLowerCase()
+                        )
+                          ? 'Paste new API key or leave blank to only change model...'
+                          : `Paste ${activeConfigProvider.name} API key...`
+                      }
+                      value={configApiKeyInput}
+                      onChange={(e) => setConfigApiKeyInput(e.target.value)}
+                      className="w-full pl-10 pr-10 py-2.5 bg-slate-900 rounded-xl text-xs font-mono text-white placeholder:text-slate-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfigApiKey(!showConfigApiKey)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 cursor-pointer"
+                    >
+                      {showConfigApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
+
+                {/* AI Model Selection Dropdown */}
+                {activeConfigProvider.category === 'ai' && (
+                  <div className="space-y-1.5 p-3 rounded-xl bg-slate-900/70 border border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Cpu className="w-3.5 h-3.5 text-sky-400" />
+                        Preferred AI Model
+                      </label>
+                      <span className="text-[10px] font-mono text-sky-400 font-semibold">
+                        Default: {activeConfigProvider.defaultModel}
+                      </span>
+                    </div>
+                    <select
+                      value={configModelInput}
+                      onChange={(e) => {
+                        setConfigModelInput(e.target.value);
+                        setTestModelInput(e.target.value);
+                      }}
+                      className="w-full px-3 py-2 bg-slate-950 text-white font-mono text-xs rounded-xl border border-slate-800 focus:outline-none focus:border-sky-500 cursor-pointer"
+                    >
+                      {(activeConfigProvider.supportedModels || []).map((m) => (
+                        <option key={m} value={m} className="bg-slate-950 text-white">
+                          {m} {m === activeConfigProvider.defaultModel ? '⭐ (Default)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-slate-400 leading-snug">
+                      OneAPI will route requests for {activeConfigProvider.name} using this model.
+                    </p>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-2">
                   <button
                     type="submit"
-                    disabled={savingConfigKey || !configApiKeyInput.trim()}
+                    disabled={
+                      savingConfigKey ||
+                      (!configApiKeyInput.trim() &&
+                        !vaultSecrets.some(
+                          (s) =>
+                            s.category?.toLowerCase() === activeConfigProvider.category?.toLowerCase() &&
+                            s.providerId?.toLowerCase() === activeConfigProvider.id?.toLowerCase()
+                        ))
+                    }
                     className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-600/20 cursor-pointer transition-colors disabled:opacity-50"
                   >
-                    {savingConfigKey ? 'Encrypting & Storing...' : 'Save into AES-256 Vault'}
+                    {savingConfigKey ? 'Saving...' : 'Save Configuration & Model'}
                   </button>
 
                   {/* If already stored in vault, allow deletion */}
@@ -719,14 +866,35 @@ export default function ProvidersPage() {
 
             {/* Step C: Live Request Tester in Modal */}
             <div className="space-y-3 pt-3">
+              {activeConfigProvider.category === 'ai' && (
+                <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-[11px] font-semibold text-slate-300 shrink-0">Model for Test:</span>
+                  <select
+                    value={testModelInput}
+                    onChange={(e) => setTestModelInput(e.target.value)}
+                    className="flex-1 px-2.5 py-1.5 bg-slate-950 text-white font-mono text-xs rounded-lg border border-slate-800 focus:outline-none"
+                  >
+                    {(activeConfigProvider.supportedModels || []).map((m) => (
+                      <option key={m} value={m} className="bg-slate-950 text-white">
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <button
                 type="button"
-                onClick={() => handleTestProvider(activeConfigProvider)}
+                onClick={() => handleTestProvider(activeConfigProvider, testModelInput || configModelInput)}
                 disabled={testingProviderId === activeConfigProvider.id}
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
               >
                 <Play className={`w-3.5 h-3.5 fill-current ${testingProviderId === activeConfigProvider.id ? 'animate-spin' : ''}`} />
-                {testingProviderId === activeConfigProvider.id ? 'Executing Live Query...' : 'Test Provider Live Response'}
+                {testingProviderId === activeConfigProvider.id
+                  ? 'Executing Live Query...'
+                  : activeConfigProvider.category === 'ai'
+                  ? `Test Live Query (${testModelInput || configModelInput || activeConfigProvider.defaultModel})`
+                  : 'Test Provider Live Response'}
               </button>
 
               {testResult && testResult.providerId === activeConfigProvider.id && (
@@ -769,5 +937,20 @@ export default function ProvidersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ProvidersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 text-center text-slate-400 flex items-center justify-center gap-2">
+          <Loader2 className="w-5 h-5 animate-spin text-sky-400" />
+          Loading API providers...
+        </div>
+      }
+    >
+      <ProvidersContent />
+    </Suspense>
   );
 }

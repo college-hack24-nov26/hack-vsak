@@ -5,10 +5,21 @@ export class OpenRouterAiAdapter implements IProviderAdapter<UnifiedAiRequest, U
   public readonly category = 'ai' as const;
   public readonly displayName = 'OpenRouter (Unified AI Models)';
   public readonly isKeyRequired = true;
+  public readonly defaultModel = 'meta-llama/llama-3.3-70b-instruct';
+  public readonly supportedModels = [
+    'meta-llama/llama-3.3-70b-instruct',
+    'google/gemini-2.5-flash',
+    'deepseek/deepseek-chat',
+    'anthropic/claude-3.5-sonnet',
+    'openai/gpt-4o',
+    'openai/gpt-4o-mini',
+  ];
 
   public async execute(params: UnifiedAiRequest, config: ProviderConfig): Promise<UnifiedAiResponse> {
     const apiKey = config.apiKey || process.env.OPENROUTER_API_KEY;
-    const model = params.model && params.model !== 'default' ? params.model : 'meta-llama/llama-3.3-70b-instruct';
+    const model = params.model && params.model !== 'default' && params.model !== 'auto'
+      ? params.model
+      : (config.metadata?.model || this.defaultModel);
 
     if (!apiKey) {
       const err = new Error('OpenRouter API key is required. Please add your OpenRouter API key to the project vault or set OPENROUTER_API_KEY.');

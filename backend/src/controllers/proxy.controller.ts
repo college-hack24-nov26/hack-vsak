@@ -26,6 +26,12 @@ export async function proxyAiChat(
   try {
     const user = req.user!;
     const { model, temperature, maxTokens } = req.body;
+    const requestedModel =
+      (req.headers['x-oneapi-model'] as string) ||
+      (req.headers['x-model'] as string) ||
+      model ||
+      (req.query?.model as string) ||
+      undefined;
     const preferredProvider =
       (req.headers['x-oneapi-provider'] as string) ||
       req.body?.provider ||
@@ -59,7 +65,7 @@ export async function proxyAiChat(
       user,
       category: 'ai',
       endpoint: '/ai/chat',
-      params: { messages, model, temperature, maxTokens },
+      params: { messages, model: requestedModel, temperature, maxTokens },
       preferredProvider,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
@@ -355,5 +361,37 @@ export async function listAvailableProviders(
       categories: grouped,
       totalRegistered: providers.length,
     },
+  });
+}
+
+/**
+ * 7. List Available AI Models
+ * GET /api/v1/proxy/ai/models
+ */
+export async function listAiModels(
+  _req: any,
+  res: Response
+): Promise<void> {
+  const aiProviders = providerRegistry.list('ai');
+  const models = aiProviders.flatMap((p) =>
+    (p.supportedModels || []).map((m) => ({
+      id: m,
+      object: 'model',
+      provider: p.id,
+      providerDisplayName: p.displayName,
+      isDefault: m === p.defaultModel,
+    }))
+  );
+
+  res.status(200).json({
+    success: true,
+    object: 'list',
+    data: models,
+    providers: aiProviders.map((p) => ({
+      id: p.id,
+      displayName: p.displayName,
+      defaultModel: p.defaultModel,
+      supportedModels: p.supportedModels,
+    })),
   });
 }

@@ -52,6 +52,8 @@ export async function getRoutingRules(
         fallbackProviderIds: fallbackList,
         timeoutMs: existing?.timeoutMs || (cat === 'ai' ? 25000 : 5000),
         retryOnStatusCodes: existing?.retryOnStatusCodes || [400, 401, 402, 403, 404, 410, 429, 500, 502, 503, 504],
+        model: existing?.model || '',
+        models: existing?.models || {},
         isCustomized: !!existing,
         updatedAt: existing?.updatedAt || null,
       };
@@ -84,7 +86,7 @@ export async function updateRoutingRule(
   try {
     const user = req.user!;
     const targetProjectId = req.projectId!;
-    const { category, primaryProviderId, fallbackProviderId, fallbackProviderIds, timeoutMs, retryOnStatusCodes } = req.body;
+    const { category, primaryProviderId, fallbackProviderId, fallbackProviderIds, timeoutMs, retryOnStatusCodes, model, models } = req.body;
 
     if (!category || !primaryProviderId) {
       res.status(400).json({
@@ -155,6 +157,8 @@ export async function updateRoutingRule(
         fallbackProviderIds: effectiveFallbacks,
         timeoutMs: timeoutMs && timeoutMs > 0 ? timeoutMs : (category === 'ai' ? 25000 : 5000),
         ...(retryOnStatusCodes && { retryOnStatusCodes }),
+        ...(model !== undefined && { model }),
+        ...(models !== undefined && { models }),
       },
       { upsert: true, returnDocument: 'after' }
     );

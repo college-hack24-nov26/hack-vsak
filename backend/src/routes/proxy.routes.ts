@@ -7,6 +7,7 @@ import {
   proxyNewsSearch,
   proxyEnvironmentAir,
   listAvailableProviders,
+  listAiModels,
 } from '../controllers/proxy.controller.js';
 import { authenticateGateway } from '../middleware/gatewayAuth.middleware.js';
 
@@ -31,6 +32,8 @@ router.get('/', (_req, res) => {
 });
 
 router.get('/providers', listAvailableProviders);
+router.get('/ai/models', listAiModels);
+router.get('/models', listAiModels);
 
 // 2. Gateway Proxy Routes (Requires OneAPI Developer API Key or User Auth Token)
 router.post('/ai/chat', authenticateGateway, proxyAiChat);

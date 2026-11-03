@@ -3,12 +3,23 @@ import type { IProviderAdapter, UnifiedAiRequest, UnifiedAiResponse, ProviderCon
 export class GroqAiAdapter implements IProviderAdapter<UnifiedAiRequest, UnifiedAiResponse> {
   public readonly id = 'groq';
   public readonly category = 'ai' as const;
-  public readonly displayName = 'Groq (Llama 3.3 70B / OpenAI-Compatible)';
+  public readonly displayName = 'Groq Cloud (LPU Inference Engine)';
   public readonly isKeyRequired = true;
+  public readonly defaultModel = 'llama-3.3-70b-versatile';
+  public readonly supportedModels = [
+    'llama-3.3-70b-versatile',
+    'llama-3.1-8b-instant',
+    'llama-3.2-11b-vision-preview',
+    'llama-3.2-3b-preview',
+    'mixtral-8x7b-32768',
+    'gemma2-9b-it',
+  ];
 
   public async execute(params: UnifiedAiRequest, config: ProviderConfig): Promise<UnifiedAiResponse> {
     const apiKey = config.apiKey || process.env.GROQ_API_KEY;
-    const model = params.model && params.model !== 'default' ? params.model : 'llama-3.3-70b-versatile';
+    const model = params.model && params.model !== 'default' && params.model !== 'auto'
+      ? params.model
+      : (config.metadata?.model || this.defaultModel);
 
     if (!apiKey) {
       const err = new Error('Groq API key is required. Please add your Groq API key to the project vault or set GROQ_API_KEY.');

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Sliders,
   Zap,
@@ -21,8 +22,10 @@ import {
   Plus,
   Trash2,
   Layers,
+  Loader2,
+  Cpu,
 } from 'lucide-react';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, authStorage } from '@/lib/api';
 import { PROVIDERS_CATALOG, type Category, type ProviderCatalogItem } from '@/lib/providersCatalog';
 
 interface RoutingConfigItem {
@@ -32,6 +35,8 @@ interface RoutingConfigItem {
   fallbackProviderIds?: string[];
   timeoutMs: number;
   retryOnStatusCodes: number[];
+  model?: string;
+  models?: Record<string, string>;
   isCustomized?: boolean;
   updatedAt?: string | null;
 }
@@ -79,7 +84,8 @@ const COMMON_STATUS_CODES = [
   { code: 410, label: '410 Endpoint Retired' },
 ];
 
-export default function RoutingConfigPage() {
+function RoutingConfigContent() {
+  const searchParams = useSearchParams();
   const [routingRules, setRoutingRules] = useState<RoutingConfigItem[]>([]);
   const [vaultSecrets, setVaultSecrets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,9 +98,22 @@ export default function RoutingConfigPage() {
   const loadData = async () => {
     setLoading(true);
     try {
+      const paramProjectId = searchParams.get('project') || searchParams.get('projectId');
+      if (paramProjectId) {
+        authStorage.setProjectId(paramProjectId);
+      }
+
+      const targetProjectId = paramProjectId || authStorage.getProjectId();
+      const routingPath = targetProjectId
+        ? `/api/v1/routing?projectId=${encodeURIComponent(targetProjectId)}`
+        : '/api/v1/routing';
+      const vaultPath = targetProjectId
+        ? `/api/v1/vault?projectId=${encodeURIComponent(targetProjectId)}`
+        : '/api/v1/vault';
+
       const [rulesRes, vaultRes] = await Promise.all([
-        fetchApi('/api/v1/routing').catch(() => null),
-        fetchApi('/api/v1/vault').catch(() => null),
+        fetchApi(routingPath).catch(() => null),
+        fetchApi(vaultPath).catch(() => null),
       ]);
 
       if (rulesRes?.success) {
@@ -123,7 +142,7 @@ export default function RoutingConfigPage() {
     return () => {
       window.removeEventListener('oneapi_project_changed', handleProjectChanged);
     };
-  }, []);
+  }, [searchParams]);
 
   const showToast = (type: 'success' | 'error', text: string) => {
     setToastMessage({ type, text });
@@ -253,6 +272,7 @@ export default function RoutingConfigPage() {
           fallbackProviderIds: fallbackList,
           timeoutMs: rule.timeoutMs,
           retryOnStatusCodes: rule.retryOnStatusCodes,
+          models: rule.models,
         }),
       });
 
@@ -542,6 +562,34 @@ export default function RoutingConfigPage() {
                   <p className="text-[11px] text-slate-400 leading-relaxed">
                     All incoming requests to <code className="text-sky-300">/api/v1/proxy/{cat}/*</code> will first route directly to this provider.
                   </p>
+
+                  {/* AI Primary Model Selection */}
+                  {cat === 'ai' && primaryProviderObj?.supportedModels && (
+                    <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-300 font-semibold flex items-center gap-1">
+                          <Cpu className="w-3 h-3 text-sky-400" /> Primary AI Model:
+                        </span>
+                        <span className="text-[10px] text-sky-400 font-mono">
+                          {currentRule.models?.[currentRule.primaryProviderId] || primaryProviderObj.defaultModel}
+                        </span>
+                      </div>
+                      <select
+                        value={currentRule.models?.[currentRule.primaryProviderId] || primaryProviderObj.defaultModel}
+                        onChange={(e) => {
+                          const updatedModels = { ...(currentRule.models || {}), [currentRule.primaryProviderId]: e.target.value };
+                          updateRuleField(cat, 'models' as any, updatedModels);
+                        }}
+                        className="w-full px-3 py-2 bg-slate-950 text-white font-mono text-xs rounded-xl border border-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                      >
+                        {primaryProviderObj.supportedModels.map((m) => (
+                          <option key={m} value={m} className="bg-slate-900 text-white">
+                            {m} {m === primaryProviderObj.defaultModel ? '⭐ (Default)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 {/* 2. Multi-Level Fallback Cascade Engine */}
@@ -793,5 +841,20 @@ export default function RoutingConfigPage() {
         })}
       </div>
     </div>
+  );
+}
+
+export default function RoutingConfigPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 text-center text-slate-400 flex items-center justify-center gap-2">
+          <Loader2 className="w-5 h-5 animate-spin text-sky-400" />
+          Loading routing configuration...
+        </div>
+      }
+    >
+      <RoutingConfigContent />
+    </Suspense>
   );
 }

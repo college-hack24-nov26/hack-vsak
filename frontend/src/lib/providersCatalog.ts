@@ -9,38 +9,71 @@ export interface ProviderCatalogItem {
   docUrl: string;
   iconUrl: string;
   fallbackIcon: string;
+  supportedModels?: string[];
+  defaultModel?: string;
 }
 
 export const PROVIDERS_CATALOG: ProviderCatalogItem[] = [
   {
     id: 'gemini',
-    name: 'Google Gemini (gemini-3.5-flash-lite)',
+    name: 'Google Gemini',
     category: 'ai',
     requiresKey: true,
     tagline: 'High-speed multimodal AI generation with sub-second response times and 1M+ token context.',
     docUrl: 'https://ai.google.dev/gemini-api/docs',
     iconUrl: 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
     fallbackIcon: '🧠',
+    defaultModel: 'gemini-2.5-flash',
+    supportedModels: [
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+      'gemini-2.5-flash-lite',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-1.5-pro',
+      'gemini-3.5-flash-lite',
+      'gemini-3.5-flash',
+      'gemini-3-flash',
+      'gemini-3-pro',
+    ],
   },
   {
     id: 'groq',
-    name: 'Groq Cloud (Llama 3.3 70B)',
+    name: 'Groq Cloud',
     category: 'ai',
     requiresKey: true,
     tagline: 'Ultra-low latency LPU inference engine for lightning-fast AI reasoning.',
     docUrl: 'https://console.groq.com/docs/quickstart',
     iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/groq.svg',
     fallbackIcon: '⚡',
+    defaultModel: 'llama-3.3-70b-versatile',
+    supportedModels: [
+      'llama-3.3-70b-versatile',
+      'llama-3.1-8b-instant',
+      'llama-3.2-11b-vision-preview',
+      'llama-3.2-3b-preview',
+      'mixtral-8x7b-32768',
+      'gemma2-9b-it',
+    ],
   },
   {
     id: 'openrouter',
-    name: 'OpenRouter (Unified AI Models)',
+    name: 'OpenRouter',
     category: 'ai',
     requiresKey: true,
     tagline: 'Access 200+ top LLMs (Claude, GPT-4o, Llama 3.3, DeepSeek) through one unified key.',
     docUrl: 'https://openrouter.ai/docs',
     iconUrl: 'https://openrouter.ai/favicon.ico',
     fallbackIcon: '🌐',
+    defaultModel: 'meta-llama/llama-3.3-70b-instruct',
+    supportedModels: [
+      'meta-llama/llama-3.3-70b-instruct',
+      'google/gemini-2.5-flash',
+      'deepseek/deepseek-chat',
+      'anthropic/claude-3.5-sonnet',
+      'openai/gpt-4o',
+      'openai/gpt-4o-mini',
+    ],
   },
   {
     id: 'deezer',

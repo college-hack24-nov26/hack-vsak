@@ -106,7 +106,8 @@ export class ProxyEngineService {
             `[ProxyEngine] ⚡ Primary "${primaryId}" has no key configured, but fallback "${fbId}" is ready. Calling "${fbAdapter.displayName}"...`
           );
 
-          const fallbackData = await fbAdapter.execute(params, fbConfig);
+          const fbParams = this.resolveModelForProvider(category, fbId, params, fbConfig, rule, fbAdapter);
+          const fallbackData = await fbAdapter.execute(fbParams, fbConfig);
           const totalLatencyMs = Date.now() - startTime;
 
           await this.logTelemetry({
@@ -141,7 +142,8 @@ export class ProxyEngineService {
 
     // 4. Attempt Primary Execution
     try {
-      const data = await primaryAdapter.execute(params, primaryConfig);
+      const primaryParams = this.resolveModelForProvider(category, primaryId, params, primaryConfig, rule, primaryAdapter);
+      const data = await primaryAdapter.execute(primaryParams, primaryConfig);
       const latencyMs = Date.now() - startTime;
 
       // Log successful telemetry
@@ -210,7 +212,8 @@ export class ProxyEngineService {
         );
 
         try {
-          const fallbackData = await candidateAdapter.execute(params, candidateConfig);
+          const candidateParams = this.resolveModelForProvider(category, candidateId, params, candidateConfig, rule, candidateAdapter);
+          const fallbackData = await candidateAdapter.execute(candidateParams, candidateConfig);
           const totalLatencyMs = Date.now() - startTime;
 
           await this.logTelemetry({
@@ -311,6 +314,30 @@ export class ProxyEngineService {
       metadata: secret?.metadata,
       timeoutMs,
     };
+  }
+
+  /**
+   * Resolves the effective model parameter for AI providers.
+   */
+  private resolveModelForProvider(
+    category: ProviderCategory,
+    providerId: string,
+    params: any,
+    config: ProviderConfig,
+    rule: any,
+    adapter: any
+  ): any {
+    if (category !== 'ai') return params;
+    const requestedModel = params?.model;
+    if (requestedModel && requestedModel !== 'default' && requestedModel !== 'auto') {
+      return params;
+    }
+    const resolvedModel =
+      rule?.models?.[providerId] ||
+      config.metadata?.model ||
+      adapter?.defaultModel ||
+      'default';
+    return { ...params, model: resolvedModel };
   }
 
   /**

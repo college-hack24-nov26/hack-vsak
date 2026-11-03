@@ -61,14 +61,14 @@ export async function saveVaultSecret(
   try {
     const user = req.user!;
     const targetProjectId = req.projectId!;
-    const { category, providerId, apiKey, metadata } = req.body;
+    const { category, providerId, apiKey, metadata, model } = req.body;
 
-    if (!category || !providerId || !apiKey) {
+    if (!category || !providerId) {
       res.status(400).json({
         success: false,
         error: {
           code: 'MISSING_FIELDS',
-          message: 'category, providerId, and apiKey are required fields.',
+          message: 'category and providerId are required fields.',
         },
       });
       return;
@@ -80,6 +80,49 @@ export async function saveVaultSecret(
         error: {
           code: 'INVALID_PROVIDER',
           message: `Provider "${providerId}" is not registered under category "${category}".`,
+        },
+      });
+      return;
+    }
+
+    const existingSecret = await VaultSecret.findOne({
+      userId: user._id,
+      projectId: targetProjectId,
+      category,
+      providerId,
+    }).select('+encryptedCombined');
+
+    const effectiveMetadata = {
+      ...(existingSecret?.metadata || {}),
+      ...(metadata || {}),
+      ...(model ? { model } : {}),
+    };
+
+    // If apiKey is omitted but secret exists and model was supplied, update metadata only
+    if (!apiKey && existingSecret) {
+      existingSecret.metadata = effectiveMetadata;
+      await existingSecret.save();
+      res.status(200).json({
+        success: true,
+        message: `Configuration and model updated for ${providerId} (${category}).`,
+        data: {
+          id: existingSecret._id,
+          projectId: existingSecret.projectId,
+          category: existingSecret.category,
+          providerId: existingSecret.providerId,
+          keyPreview: existingSecret.keyPreview,
+          metadata: existingSecret.metadata,
+        },
+      });
+      return;
+    }
+
+    if (!apiKey) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'MISSING_API_KEY',
+          message: 'apiKey is required to configure a new vault credential.',
         },
       });
       return;
@@ -106,7 +149,7 @@ export async function saveVaultSecret(
       {
         encryptedCombined,
         keyPreview,
-        metadata: metadata || {},
+        metadata: effectiveMetadata,
       },
       { upsert: true, returnDocument: 'after' }
     );
