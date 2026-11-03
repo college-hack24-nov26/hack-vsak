@@ -11,7 +11,7 @@ export class GeminiAiAdapter implements IProviderAdapter<UnifiedAiRequest, Unifi
 
     if (!apiKey) {
       const err = new Error('Gemini API key is required. Please add it to your project vault.');
-      (err as any).statusCode = 503;
+      (err as any).statusCode = 401;
       throw err;
     }
 
@@ -32,7 +32,7 @@ export class GeminiAiAdapter implements IProviderAdapter<UnifiedAiRequest, Unifi
     for (const model of modelCandidates) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), config.timeoutMs || 10000);
+      const timeout = setTimeout(() => controller.abort(), config.timeoutMs || 25000);
 
       try {
         const response = await fetch(url, {
@@ -60,11 +60,19 @@ export class GeminiAiAdapter implements IProviderAdapter<UnifiedAiRequest, Unifi
           throw error;
         }
 
-        const data = await response.json() as any;
+        const data = (await response.json()) as any;
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        const finishReason = data.candidates?.[0]?.finishReason || 'STOP';
+        const rawFinish = data.candidates?.[0]?.finishReason || 'STOP';
+        const finishReason = rawFinish.toLowerCase() === 'stop' ? 'stop' : rawFinish.toLowerCase();
+
+        const promptTokens = data.usageMetadata?.promptTokenCount ?? 0;
+        const completionTokens = data.usageMetadata?.candidatesTokenCount ?? 0;
+        const totalTokens = data.usageMetadata?.totalTokenCount ?? (promptTokens + completionTokens);
 
         return {
+          id: `chatcmpl-gemini-${Date.now()}`,
+          object: 'chat.completion',
+          created: Math.floor(Date.now() / 1000),
           choices: [
             {
               index: 0,
@@ -73,14 +81,18 @@ export class GeminiAiAdapter implements IProviderAdapter<UnifiedAiRequest, Unifi
                 content: text,
               },
               finishReason,
+              finish_reason: finishReason,
             },
           ],
           model,
           provider: this.id,
           usage: {
-            promptTokens: data.usageMetadata?.promptTokenCount,
-            completionTokens: data.usageMetadata?.candidatesTokenCount,
-            totalTokens: data.usageMetadata?.totalTokenCount,
+            promptTokens,
+            completionTokens,
+            totalTokens,
+            prompt_tokens: promptTokens,
+            completion_tokens: completionTokens,
+            total_tokens: totalTokens,
           },
         };
       } catch (err: any) {

@@ -48,81 +48,89 @@ export class ProxyEngineService {
     let primaryId = rule?.primaryProviderId || defaults.primary;
     let fallbackId = rule?.fallbackProviderId || defaults.fallback;
 
+    // Resolve multi-level fallback cascade chain
+    let fallbackChain: string[] = [];
+    if (rule?.fallbackProviderIds && rule.fallbackProviderIds.length > 0) {
+      fallbackChain = rule.fallbackProviderIds.filter(
+        (id) => id && id !== 'none' && id !== 'disabled' && id !== primaryId
+      );
+    } else if (fallbackId && fallbackId !== 'none' && fallbackId !== 'disabled') {
+      fallbackChain = [fallbackId];
+    }
+
     // Caller can explicitly target a specific provider (e.g. from interactive playground or headers)
     if (preferredProvider && providerRegistry.has(category, preferredProvider)) {
       if (preferredProvider !== primaryId) {
-        if (preferredProvider === fallbackId) {
-          fallbackId = primaryId;
-          primaryId = preferredProvider;
-        } else {
-          // preferredProvider is an additional provider (e.g. openrouter).
-          // Keep the existing fallback as the failover target.
-          primaryId = preferredProvider;
-        }
+        fallbackChain = [primaryId, ...fallbackChain.filter((id) => id !== preferredProvider)];
+        primaryId = preferredProvider;
       }
     }
+
+    // Deduplicate fallback chain
+    fallbackChain = Array.from(new Set(fallbackChain));
 
     const defaultTimeout = category === 'ai' ? 25000 : 8000;
     const timeoutMs = rule?.timeoutMs && rule.timeoutMs > 0 ? rule.timeoutMs : defaultTimeout;
     const retryStatuses = rule?.retryOnStatusCodes || [400, 401, 402, 403, 404, 410, 429, 500, 502, 503, 504];
 
-    // 2. Fetch provider adapters
+    // 2. Fetch primary adapter & credentials
     const primaryAdapter = providerRegistry.get(category, primaryId);
     if (!primaryAdapter) {
       throw new Error(`Primary provider "${primaryId}" not found for category "${category}".`);
     }
 
-    const hasFallback = Boolean(fallbackId && fallbackId !== 'none' && fallbackId !== 'disabled');
-    const fallbackAdapter = hasFallback ? providerRegistry.get(category, fallbackId) : null;
-
-    // 3. Resolve provider credentials from developer's vault
     const primaryConfig = await this.resolveProviderConfig(user, category, primaryId, timeoutMs);
-    const fallbackConfig = (hasFallback && fallbackAdapter)
-      ? await this.resolveProviderConfig(user, category, fallbackId, timeoutMs)
-      : { timeoutMs };
 
-    // 4. Smart Direct Fallback:
-    // If primary provider requires an API key that is not configured, but fallback IS configured (or public),
-    // directly execute the configured fallback provider and return live content immediately!
+    // 3. Smart Direct Fallback Cascade:
+    // If primary provider requires an API key that is not configured, find the first available fallback that is ready
     const isPrimaryMissingKey = primaryAdapter.isKeyRequired && !primaryConfig.apiKey;
-    const isFallbackConfigured = hasFallback && fallbackAdapter && (!fallbackAdapter.isKeyRequired || Boolean(fallbackConfig.apiKey));
 
-    if (hasFallback && isPrimaryMissingKey && isFallbackConfigured && fallbackAdapter) {
-      console.log(
-        `[ProxyEngine] ⚡ Primary "${primaryId}" has no key configured, but fallback "${fallbackId}" is ready. Directly calling fallback "${fallbackAdapter.displayName}"...`
-      );
+    if (isPrimaryMissingKey && fallbackChain.length > 0) {
+      for (const fbId of fallbackChain) {
+        const fbAdapter = providerRegistry.get(category, fbId);
+        if (!fbAdapter) continue;
 
-      const fallbackData = await fallbackAdapter.execute(params, fallbackConfig);
-      const totalLatencyMs = Date.now() - startTime;
+        const fbConfig = await this.resolveProviderConfig(user, category, fbId, timeoutMs);
+        const isReady = !fbAdapter.isKeyRequired || Boolean(fbConfig.apiKey);
 
-      await this.logTelemetry({
-        userId: user._id,
-        category,
-        endpoint,
-        primaryProvider: primaryId,
-        finalProvider: fallbackId,
-        fallbackTriggered: true,
-        fallbackReason: 'PRIMARY_KEY_NOT_CONFIGURED',
-        latencyMs: totalLatencyMs,
-        statusCode: 200,
-        ipAddress,
-        userAgent,
-      });
+        if (isReady) {
+          console.log(
+            `[ProxyEngine] ⚡ Primary "${primaryId}" has no key configured, but fallback "${fbId}" is ready. Calling "${fbAdapter.displayName}"...`
+          );
 
-      return {
-        data: fallbackData,
-        meta: {
-          category,
-          primaryProvider: primaryId,
-          finalProvider: fallbackId,
-          fallbackTriggered: true,
-          fallbackReason: 'PRIMARY_KEY_NOT_CONFIGURED',
-          latencyMs: totalLatencyMs,
-        },
-      };
+          const fallbackData = await fbAdapter.execute(params, fbConfig);
+          const totalLatencyMs = Date.now() - startTime;
+
+          await this.logTelemetry({
+            userId: user._id,
+            category,
+            endpoint,
+            primaryProvider: primaryId,
+            finalProvider: fbId,
+            fallbackTriggered: true,
+            fallbackReason: 'PRIMARY_KEY_NOT_CONFIGURED',
+            latencyMs: totalLatencyMs,
+            statusCode: 200,
+            ipAddress,
+            userAgent,
+          });
+
+          return {
+            data: fallbackData,
+            meta: {
+              category,
+              primaryProvider: primaryId,
+              finalProvider: fbId,
+              fallbackTriggered: true,
+              fallbackReason: 'PRIMARY_KEY_NOT_CONFIGURED',
+              latencyMs: totalLatencyMs,
+            },
+          };
+        }
+      }
     }
 
-    // 5. Attempt Primary Execution
+    // 4. Attempt Primary Execution
     try {
       const data = await primaryAdapter.execute(params, primaryConfig);
       const latencyMs = Date.now() - startTime;
@@ -153,74 +161,100 @@ export class ProxyEngineService {
       };
     } catch (primaryError: any) {
       const primaryStatus = primaryError.statusCode || 500;
-      const shouldRetry = retryStatuses.includes(primaryStatus) || primaryStatus >= 400 || primaryError.name === 'AbortError' || primaryError.message?.includes('timeout');
+      const shouldRetry =
+        retryStatuses.includes(primaryStatus) ||
+        primaryStatus >= 400 ||
+        primaryError.name === 'AbortError' ||
+        primaryError.message?.includes('timeout');
 
-      console.warn(`[ProxyEngine] Primary provider "${primaryId}" failed (${primaryError.message}). Should failover: ${shouldRetry}`);
+      console.warn(
+        `[ProxyEngine] Primary provider "${primaryId}" failed (${primaryError.message}). Should failover: ${shouldRetry}`
+      );
 
       if (!shouldRetry) {
         throw primaryError;
       }
 
-      // 6. Automatic Failover to Fallback Provider
-      const fallbackReason = primaryError.name === 'AbortError' ? 'TIMEOUT_EXCEEDED' : `UPSTREAM_${primaryStatus}`;
-
-      if (!fallbackAdapter || !hasFallback) {
-        console.log(`[ProxyEngine] Fallback is disabled (${fallbackId || 'none'}) or not found. Returning direct primary error.`);
+      if (fallbackChain.length === 0) {
+        console.log(`[ProxyEngine] Fallback cascade is empty. Returning direct primary error.`);
         throw primaryError;
       }
 
-      console.log(`[ProxyEngine] 🔄 Automatically failing over to "${fallbackAdapter.displayName}" (${fallbackId})...`);
+      const primaryFailReason = primaryError.name === 'AbortError' ? 'TIMEOUT_EXCEEDED' : `UPSTREAM_${primaryStatus}`;
+      let lastFallbackError: any = null;
 
-      try {
-        const fallbackData = await fallbackAdapter.execute(params, fallbackConfig);
-        const totalLatencyMs = Date.now() - startTime;
+      // 5. Automatic Failover across Multi-Level Fallback Cascade Chain
+      for (let i = 0; i < fallbackChain.length; i++) {
+        const candidateId = fallbackChain[i];
+        const candidateAdapter = providerRegistry.get(category, candidateId);
+        if (!candidateAdapter) continue;
 
-        // Log failover telemetry
-        await this.logTelemetry({
-          userId: user._id,
-          category,
-          endpoint,
-          primaryProvider: primaryId,
-          finalProvider: fallbackId,
-          fallbackTriggered: true,
-          fallbackReason,
-          latencyMs: totalLatencyMs,
-          statusCode: 200,
-          ipAddress,
-          userAgent,
-        });
+        const candidateConfig = await this.resolveProviderConfig(user, category, candidateId, timeoutMs);
+        if (candidateAdapter.isKeyRequired && !candidateConfig.apiKey) {
+          console.log(`[ProxyEngine] Skipping fallback "${candidateId}" (requires key that is not in vault).`);
+          continue;
+        }
 
-        return {
-          data: fallbackData,
-          meta: {
+        console.log(
+          `[ProxyEngine] 🔄 Failover cascade [${i + 1}/${fallbackChain.length}]: Calling "${candidateAdapter.displayName}" (${candidateId})...`
+        );
+
+        try {
+          const fallbackData = await candidateAdapter.execute(params, candidateConfig);
+          const totalLatencyMs = Date.now() - startTime;
+
+          await this.logTelemetry({
+            userId: user._id,
             category,
+            endpoint,
             primaryProvider: primaryId,
-            finalProvider: fallbackId,
+            finalProvider: candidateId,
             fallbackTriggered: true,
-            fallbackReason,
+            fallbackReason: primaryFailReason,
             latencyMs: totalLatencyMs,
-          },
-        };
-      } catch (fallbackError: any) {
-        const totalLatencyMs = Date.now() - startTime;
-        console.error(`[ProxyEngine] Both primary and fallback providers failed for ${category}.`);
+            statusCode: 200,
+            ipAddress,
+            userAgent,
+          });
 
-        await this.logTelemetry({
-          userId: user._id,
-          category,
-          endpoint,
-          primaryProvider: primaryId,
-          finalProvider: fallbackId,
-          fallbackTriggered: true,
-          fallbackReason: `FALLBACK_FAILED_${fallbackError.statusCode || 500}`,
-          latencyMs: totalLatencyMs,
-          statusCode: fallbackError.statusCode || 500,
-          ipAddress,
-          userAgent,
-        });
-
-        throw fallbackError;
+          return {
+            data: fallbackData,
+            meta: {
+              category,
+              primaryProvider: primaryId,
+              finalProvider: candidateId,
+              fallbackTriggered: true,
+              fallbackReason: primaryFailReason,
+              latencyMs: totalLatencyMs,
+            },
+          };
+        } catch (candidateError: any) {
+          console.warn(
+            `[ProxyEngine] Fallback "${candidateId}" failed (${candidateError.message}). Proceeding down the cascade...`
+          );
+          lastFallbackError = candidateError;
+        }
       }
+
+      // If all fallbacks in the cascade failed:
+      const totalLatencyMs = Date.now() - startTime;
+      console.error(`[ProxyEngine] All providers in cascade failed for ${category}.`);
+
+      await this.logTelemetry({
+        userId: user._id,
+        category,
+        endpoint,
+        primaryProvider: primaryId,
+        finalProvider: fallbackChain[fallbackChain.length - 1] || primaryId,
+        fallbackTriggered: true,
+        fallbackReason: `CASCADE_EXHAUSTED_${lastFallbackError?.statusCode || 500}`,
+        latencyMs: totalLatencyMs,
+        statusCode: lastFallbackError?.statusCode || 500,
+        ipAddress,
+        userAgent,
+      });
+
+      throw lastFallbackError || primaryError;
     }
   }
 

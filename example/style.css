@@ -977,3 +977,36 @@ body {
 .btn-primary:hover {
   opacity: 0.9;
 }
+
+
+/* Provider Targeting Controls */
+.provider-toggle-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.provider-btn {
+  background: #18181b;
+  color: #a1a1aa;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.provider-btn:hover {
+  background: #27272a;
+  color: #fff;
+}
+
+.provider-btn.active {
+  background: #38bdf8;
+  color: #000;
+}

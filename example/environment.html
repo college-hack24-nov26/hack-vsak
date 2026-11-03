@@ -213,6 +213,10 @@
             <span class="nav-icon">🎵</span>
             <span class="nav-label">Music &amp; Audio</span>
           </a>
+          <a href="news.html" class="nav-item">
+            <span class="nav-icon">📰</span>
+            <span class="nav-label">News Radar</span>
+          </a>
           <a href="environment.html" class="nav-item active">
             <span class="nav-icon">🌱</span>
             <span class="nav-label">Air Quality Monitor</span>
@@ -261,6 +265,14 @@
             <span>Analyze</span>
             <span>→</span>
           </button>
+        </div>
+
+        <!-- Provider Direct Targeting Toggle -->
+        <div class="provider-toggle-bar">
+          <span style="font-size: 12px; color: #71717a; margin-right: 4px;">Provider Mode:</span>
+          <button class="provider-btn active" data-provider="">⚡ Auto (Cascade)</button>
+          <button class="provider-btn" data-provider="openaq">OpenAQ Sensor Network (v3)</button>
+          <button class="provider-btn" data-provider="openmeteo_air">Open-Meteo Air Quality</button>
         </div>
 
         <div class="quick-cities">
@@ -334,9 +346,16 @@
     </main>
   </div>
 
+  <script src="oneapi-sdk.js"></script>
   <script>
     const baseUrl = localStorage.getItem('oneapi_chat_base_url') || 'http://localhost:5000';
     const apiKey = localStorage.getItem('oneapi_chat_api_key') || localStorage.getItem('oneapi_latest_raw_developer_api_key') || '';
+
+    // Initialize OneAPI SDK
+    const oneapi = new OneAPI({
+      apiKey,
+      baseURL: `${baseUrl.replace(/\/$/, '')}/api/v1`,
+    });
 
     const cityInput = document.getElementById('cityInput');
     const searchEnvBtn = document.getElementById('searchEnvBtn');
@@ -352,73 +371,64 @@
     const envLatencyVal = document.getElementById('envLatencyVal');
     const envStatusVal = document.getElementById('envStatusVal');
 
+    let currentSelectedProvider = '';
+
     async function fetchAirQuality(city) {
       searchEnvBtn.textContent = 'Analyzing...';
       const startTime = performance.now();
 
       try {
-        const headers = { 'Content-Type': 'application/json' };
-        if (apiKey) {
-          headers['x-api-key'] = apiKey;
-          headers['Authorization'] = `Bearer ${apiKey}`;
-        }
-
-        const res = await fetch(`${baseUrl.replace(/\/$/, '')}/api/v1/proxy/environment/air-quality?city=${encodeURIComponent(city)}`, {
-          method: 'GET',
-          headers,
+        const res = await oneapi.environment.airQuality({
+          city,
+          provider: currentSelectedProvider || undefined,
         });
 
-        const data = await res.json();
         const latency = Math.round(performance.now() - startTime);
+        const air = res.airQuality || {};
 
-        if (res.ok && data.success !== false) {
-          const payload = data.data || data;
-          const air = payload.airQuality || {};
+        locationTitle.textContent = res.location || city;
+        const aqi = air.aqi !== undefined ? air.aqi : 42;
+        aqiNumber.textContent = aqi;
 
-          locationTitle.textContent = payload.location || city;
-          const aqi = air.aqi || 42;
-          aqiNumber.textContent = aqi;
-
-          // AQI Classification
-          if (aqi <= 50) {
-            aqiBadge.textContent = 'Good Air Quality';
-            aqiBadge.style.color = '#34d399';
-            aqiNumber.style.color = '#34d399';
-            aqiAdvisory.textContent = 'Air quality is considered satisfactory, and air pollution poses little or no risk to health.';
-          } else if (aqi <= 100) {
-            aqiBadge.textContent = 'Moderate Quality';
-            aqiBadge.style.color = '#fbbf24';
-            aqiNumber.style.color = '#fbbf24';
-            aqiAdvisory.textContent = 'Air quality is acceptable; however, sensitive individuals may experience minor symptoms.';
-          } else if (aqi <= 150) {
-            aqiBadge.textContent = 'Unhealthy for Sensitive Groups';
-            aqiBadge.style.color = '#fb923c';
-            aqiNumber.style.color = '#fb923c';
-            aqiAdvisory.textContent = 'Members of sensitive groups may experience health effects. The general public is less likely to be affected.';
-          } else {
-            aqiBadge.textContent = 'Unhealthy Quality';
-            aqiBadge.style.color = '#f87171';
-            aqiNumber.style.color = '#f87171';
-            aqiAdvisory.textContent = 'Everyone may begin to experience health effects; members of sensitive groups may experience more serious health effects.';
-          }
-
-          pm25Val.textContent = air.pm25 !== undefined ? air.pm25 : '9.2';
-          pm10Val.textContent = air.pm10 !== undefined ? air.pm10 : '16.5';
-          o3Val.textContent = air.o3 !== undefined ? air.o3 : '45.0';
-          no2Val.textContent = air.no2 !== undefined ? air.no2 : '21.0';
-
-          // Telemetry
-          const finalProv = data._oneapi?.finalProvider || payload.provider || 'openmeteo_air';
-          const fallback = Boolean(data._oneapi?.fallbackTriggered);
-          envProviderVal.textContent = finalProv;
-          envLatencyVal.textContent = latency + 'ms';
-          envStatusVal.textContent = fallback ? '🔄 Fallback Provider Active' : '⚡ Direct Primary Call';
-          envStatusVal.style.color = fallback ? '#c084fc' : '#34d399';
+        // AQI Classification
+        if (aqi <= 50) {
+          aqiBadge.textContent = 'Good Air Quality';
+          aqiBadge.style.color = '#34d399';
+          aqiNumber.style.color = '#34d399';
+          aqiAdvisory.textContent = 'Air quality is considered satisfactory, and air pollution poses little or no risk to health.';
+        } else if (aqi <= 100) {
+          aqiBadge.textContent = 'Moderate Quality';
+          aqiBadge.style.color = '#fbbf24';
+          aqiNumber.style.color = '#fbbf24';
+          aqiAdvisory.textContent = 'Air quality is acceptable; however, sensitive individuals may experience minor respiratory symptoms.';
+        } else if (aqi <= 150) {
+          aqiBadge.textContent = 'Unhealthy for Sensitive Groups';
+          aqiBadge.style.color = '#fb923c';
+          aqiNumber.style.color = '#fb923c';
+          aqiAdvisory.textContent = 'Members of sensitive groups may experience health effects. The general public is less likely to be affected.';
         } else {
-          locationTitle.textContent = 'Error: ' + (data.error?.message || 'Data unavailable');
+          aqiBadge.textContent = 'Unhealthy Quality';
+          aqiBadge.style.color = '#f87171';
+          aqiNumber.style.color = '#f87171';
+          aqiAdvisory.textContent = 'Everyone may begin to experience health effects; members of sensitive groups may experience more serious health effects.';
         }
+
+        pm25Val.textContent = air.pm25 !== undefined ? air.pm25 : '—';
+        pm10Val.textContent = air.pm10 !== undefined ? air.pm10 : '—';
+        o3Val.textContent = air.o3 !== undefined ? air.o3 : '—';
+        no2Val.textContent = air.no2 !== undefined ? air.no2 : '—';
+
+        // Telemetry
+        const finalProv = res._oneapi?.finalProvider || res.provider || 'openmeteo_air';
+        const fallback = Boolean(res._oneapi?.fallbackTriggered);
+        envProviderVal.textContent = finalProv;
+        envLatencyVal.textContent = latency + 'ms';
+        envStatusVal.textContent = fallback ? '🔄 Fallback Provider Active' : '⚡ Direct Primary Call';
+        envStatusVal.style.color = fallback ? '#c084fc' : '#34d399';
       } catch (err) {
-        locationTitle.textContent = 'Network Error: Cannot reach ' + baseUrl;
+        locationTitle.textContent = 'Error: ' + (err.message || 'Data unavailable');
+        aqiBadge.textContent = 'Service Error';
+        aqiBadge.style.color = '#f87171';
       } finally {
         searchEnvBtn.textContent = 'Analyze →';
       }
@@ -436,12 +446,24 @@
       }
     });
 
+    // City quick chips
     document.querySelectorAll('.city-chip').forEach(chip => {
       chip.addEventListener('click', () => {
         document.querySelectorAll('.city-chip').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
         const city = chip.getAttribute('data-city');
         cityInput.value = city;
+        fetchAirQuality(city);
+      });
+    });
+
+    // Provider buttons
+    document.querySelectorAll('.provider-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.provider-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentSelectedProvider = btn.getAttribute('data-provider');
+        const city = cityInput.value.trim() || 'London';
         fetchAirQuality(city);
       });
     });

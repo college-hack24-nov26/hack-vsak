@@ -18,6 +18,9 @@ import {
   Check,
   ChevronRight,
   ExternalLink,
+  Plus,
+  Trash2,
+  Layers,
 } from 'lucide-react';
 import { fetchApi } from '@/lib/api';
 import { PROVIDERS_CATALOG, type Category, type ProviderCatalogItem } from '@/lib/providersCatalog';
@@ -26,6 +29,7 @@ interface RoutingConfigItem {
   category: Category;
   primaryProviderId: string;
   fallbackProviderId: string;
+  fallbackProviderIds?: string[];
   timeoutMs: number;
   retryOnStatusCodes: number[];
   isCustomized?: boolean;
@@ -146,25 +150,108 @@ export default function RoutingConfigPage() {
     );
   };
 
+  const addFallbackStep = (category: Category, providerId: string) => {
+    setRoutingRules((prev) =>
+      prev.map((rule) => {
+        if (rule.category === category) {
+          const currentList =
+            rule.fallbackProviderIds && rule.fallbackProviderIds.length > 0
+              ? [...rule.fallbackProviderIds]
+              : rule.fallbackProviderId && rule.fallbackProviderId !== 'none'
+              ? [rule.fallbackProviderId]
+              : [];
+
+          if (!currentList.includes(providerId)) {
+            const updated = [...currentList, providerId];
+            return {
+              ...rule,
+              fallbackProviderIds: updated,
+              fallbackProviderId: updated[0] || 'none',
+            };
+          }
+        }
+        return rule;
+      })
+    );
+  };
+
+  const removeFallbackStep = (category: Category, index: number) => {
+    setRoutingRules((prev) =>
+      prev.map((rule) => {
+        if (rule.category === category) {
+          const currentList =
+            rule.fallbackProviderIds && rule.fallbackProviderIds.length > 0
+              ? [...rule.fallbackProviderIds]
+              : rule.fallbackProviderId && rule.fallbackProviderId !== 'none'
+              ? [rule.fallbackProviderId]
+              : [];
+
+          const updated = currentList.filter((_, idx) => idx !== index);
+          return {
+            ...rule,
+            fallbackProviderIds: updated,
+            fallbackProviderId: updated[0] || 'none',
+          };
+        }
+        return rule;
+      })
+    );
+  };
+
+  const updateFallbackStep = (category: Category, index: number, newProviderId: string) => {
+    setRoutingRules((prev) =>
+      prev.map((rule) => {
+        if (rule.category === category) {
+          const currentList =
+            rule.fallbackProviderIds && rule.fallbackProviderIds.length > 0
+              ? [...rule.fallbackProviderIds]
+              : rule.fallbackProviderId && rule.fallbackProviderId !== 'none'
+              ? [rule.fallbackProviderId]
+              : [];
+
+          currentList[index] = newProviderId;
+          const cleaned = Array.from(new Set(currentList.filter((id) => id && id !== 'none')));
+          return {
+            ...rule,
+            fallbackProviderIds: cleaned,
+            fallbackProviderId: cleaned[0] || 'none',
+          };
+        }
+        return rule;
+      })
+    );
+  };
+
   const handleSaveRule = async (category: Category) => {
     const rule = routingRules.find((r) => r.category === category);
     if (!rule) return;
 
     setSavingCat(category);
     try {
+      const fallbackList =
+        rule.fallbackProviderIds && rule.fallbackProviderIds.length > 0
+          ? rule.fallbackProviderIds
+          : rule.fallbackProviderId && rule.fallbackProviderId !== 'none'
+          ? [rule.fallbackProviderId]
+          : [];
+
       const res = await fetchApi('/api/v1/routing', {
         method: 'PUT',
         body: JSON.stringify({
           category: rule.category,
           primaryProviderId: rule.primaryProviderId,
-          fallbackProviderId: rule.fallbackProviderId,
+          fallbackProviderId: fallbackList[0] || 'none',
+          fallbackProviderIds: fallbackList,
           timeoutMs: rule.timeoutMs,
           retryOnStatusCodes: rule.retryOnStatusCodes,
         }),
       });
 
       if (res.success) {
-        showToast('success', `Routing rules for ${category.toUpperCase()} updated successfully.`);
+        showToast(
+          'success',
+          `Routing for ${category.toUpperCase()} saved: Primary + ${fallbackList.length} Fallbacks in cascade.`
+        );
         await loadData();
       } else {
         showToast('error', res.error?.message || 'Failed to update routing configuration.');
@@ -348,9 +435,20 @@ export default function RoutingConfigPage() {
               retryOnStatusCodes: [429, 500, 502, 503, 504],
             };
 
-          const isDirectOnly = !currentRule.fallbackProviderId || currentRule.fallbackProviderId === 'none';
+          const activeFallbackList =
+            currentRule.fallbackProviderIds && currentRule.fallbackProviderIds.length > 0
+              ? currentRule.fallbackProviderIds
+              : currentRule.fallbackProviderId && currentRule.fallbackProviderId !== 'none'
+              ? [currentRule.fallbackProviderId]
+              : [];
+
+          const availableAdditionalFallbacks = catProviders.filter(
+            (p) => p.id !== currentRule.primaryProviderId && !activeFallbackList.includes(p.id)
+          );
+
+          const isDirectOnly = activeFallbackList.length === 0;
           const primaryProviderObj = catProviders.find((p) => p.id === currentRule.primaryProviderId);
-          const fallbackProviderObj = catProviders.find((p) => p.id === currentRule.fallbackProviderId);
+          const fallbackProviderObj = catProviders.find((p) => p.id === activeFallbackList[0]);
           const isSaving = savingCat === cat;
           const isTesting = testingCat === cat;
           const currentTest = testResults[cat];
@@ -437,45 +535,139 @@ export default function RoutingConfigPage() {
                   </p>
                 </div>
 
-                {/* 2. Fallback Engine */}
+                {/* 2. Multi-Level Fallback Cascade Engine */}
                 <div className="p-4 rounded-xl bg-slate-900/90 space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <RotateCcw className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Fallback Provider (Optional)</span>
+                      <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Fallback Priority Cascade ({activeFallbackList.length} Levels)</span>
                     </label>
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                        isDirectOnly
+                        activeFallbackList.length === 0
                           ? 'bg-slate-800 text-slate-400'
-                          : fallbackHasKey
-                          ? 'bg-emerald-500/15 text-emerald-400'
-                          : 'bg-amber-500/15 text-amber-400'
+                          : 'bg-emerald-500/15 text-emerald-400'
                       }`}
                     >
-                      {isDirectOnly ? 'Disabled' : fallbackHasKey ? '✓ Ready / Key Set' : '⚠️ Vault Key Needed'}
+                      {activeFallbackList.length === 0 ? 'Direct Only' : `${activeFallbackList.length} Fallbacks Active`}
                     </span>
                   </div>
 
-                  <select
-                    value={currentRule.fallbackProviderId || 'none'}
-                    onChange={(e) => updateRuleField(cat, 'fallbackProviderId', e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 text-white font-semibold text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                  >
-                    <option value="none">None (Direct Call Only - No Fallback)</option>
-                    {catProviders.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} {p.requiresKey ? '(Key Required)' : '(Public Free API)'}
-                      </option>
-                    ))}
-                  </select>
+                  {activeFallbackList.length === 0 ? (
+                    <div className="p-3 rounded-xl bg-slate-950/80 text-xs text-slate-400 flex items-center justify-between">
+                      <span>No fallback configured. Errors return directly.</span>
+                      {availableAdditionalFallbacks.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => addFallbackStep(cat, availableAdditionalFallbacks[0].id)}
+                          className="px-2.5 py-1 bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 rounded-lg text-[11px] font-bold cursor-pointer transition-colors"
+                        >
+                          + Enable Fallback
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {activeFallbackList.map((fbId, fbIdx) => {
+                        const fbObj = catProviders.find((p) => p.id === fbId);
+                        const hasKey =
+                          !fbObj?.requiresKey ||
+                          vaultSecrets.some(
+                            (s) =>
+                              s.category?.toLowerCase() === cat &&
+                              s.providerId?.toLowerCase() === fbId.toLowerCase()
+                          );
 
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    {isDirectOnly
-                      ? 'Fallback is disabled. If primary returns an error or times out, the error will be returned directly.'
-                      : 'If primary fails or reaches timeout, OneAPI will automatically route the query to this fallback engine.'}
-                  </p>
+                        return (
+                          <div
+                            key={fbIdx}
+                            className="p-2.5 rounded-xl bg-slate-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                          >
+                            <div className="flex items-center gap-2 flex-1">
+                              <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono text-[10px] font-bold shrink-0">
+                                #{fbIdx + 1}
+                              </span>
+                              <select
+                                value={fbId}
+                                onChange={(e) => updateFallbackStep(cat, fbIdx, e.target.value)}
+                                className="bg-transparent text-white font-semibold text-xs rounded focus:outline-none cursor-pointer flex-1"
+                              >
+                                {catProviders
+                                  .filter((p) => p.id !== currentRule.primaryProviderId)
+                                  .map((p) => (
+                                    <option key={p.id} value={p.id} className="bg-slate-900 text-white">
+                                      {p.name} {p.requiresKey ? '(Key Required)' : '(Public)'}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+
+                            <div className="flex items-center gap-2 self-end sm:self-auto">
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                  hasKey ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'
+                                }`}
+                              >
+                                {hasKey ? '✓ Ready' : 'Key Needed'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => removeFallbackStep(cat, fbIdx)}
+                                className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer"
+                                title="Remove this fallback level"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Add more fallbacks button */}
+                  {availableAdditionalFallbacks.length > 0 && activeFallbackList.length > 0 && (
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[11px] text-slate-400">Available: {availableAdditionalFallbacks.length} more</span>
+                      <button
+                        type="button"
+                        onClick={() => addFallbackStep(cat, availableAdditionalFallbacks[0].id)}
+                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-bold cursor-pointer transition-colors flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3 text-emerald-400" />
+                        <span>Add Fallback Stage ({availableAdditionalFallbacks[0].name.split(' (')[0]})</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
+              </div>
+
+              {/* Visual Multi-Level Failover Cascade Flowchart */}
+              <div className="p-3.5 rounded-xl bg-slate-950/60 flex flex-wrap items-center gap-2 text-xs font-mono">
+                <span className="text-slate-400 text-[11px] font-sans font-bold">Execution Cascade:</span>
+                <span className="px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-300 font-bold flex items-center gap-1">
+                  <Zap className="w-3 h-3" />
+                  <span>Primary: {primaryProviderObj?.name.split(' (')[0] || currentRule.primaryProviderId}</span>
+                </span>
+
+                {activeFallbackList.length === 0 ? (
+                  <span className="text-slate-500 text-[11px]">──► Direct (No Failover)</span>
+                ) : (
+                  activeFallbackList.map((fbId, fbIdx) => {
+                    const fbObj = catProviders.find((p) => p.id === fbId);
+                    return (
+                      <React.Fragment key={fbIdx}>
+                        <span className="text-slate-500 font-bold">──►</span>
+                        <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 font-bold flex items-center gap-1">
+                          <RotateCcw className="w-3 h-3" />
+                          <span>
+                            Fallback #{fbIdx + 1}: {fbObj?.name.split(' (')[0] || fbId}
+                          </span>
+                        </span>
+                      </React.Fragment>
+                    );
+                  })
+                )}
               </div>
 
               {/* Advanced Controls: Timeout & Failover Triggers */}

@@ -7,6 +7,7 @@ export interface IRoutingRule extends Document {
   category: ProviderCategory;
   primaryProviderId: string;
   fallbackProviderId: string;
+  fallbackProviderIds: string[];
   timeoutMs: number;
   retryOnStatusCodes: number[];
   createdAt: Date;
@@ -34,6 +35,10 @@ const RoutingRuleSchema = new Schema<IRoutingRule>(
     fallbackProviderId: {
       type: String,
       default: 'none',
+    },
+    fallbackProviderIds: {
+      type: [String],
+      default: [],
     },
     timeoutMs: {
       type: Number,

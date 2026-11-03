@@ -228,6 +228,10 @@
             <span class="nav-label">Music &amp; Audio</span>
             <span class="pill-live">Live</span>
           </a>
+          <a href="news.html" class="nav-item">
+            <span class="nav-icon">📰</span>
+            <span class="nav-label">News Radar</span>
+          </a>
           <a href="environment.html" class="nav-item">
             <span class="nav-icon">🌱</span>
             <span class="nav-label">Air Quality Monitor</span>
@@ -277,6 +281,14 @@
           </button>
         </div>
 
+        <!-- Provider Direct Targeting Toggle -->
+        <div class="provider-toggle-bar">
+          <span style="font-size: 12px; color: #71717a; margin-right: 4px;">Provider Mode:</span>
+          <button class="provider-btn active" data-provider="">⚡ Auto (Cascade)</button>
+          <button class="provider-btn" data-provider="deezer">Deezer (Public)</button>
+          <button class="provider-btn" data-provider="itunes">Apple iTunes (Fallback)</button>
+        </div>
+
         <!-- Quick Chips -->
         <div class="quick-artists">
           <span class="artist-chip active" data-q="Daft Punk">Daft Punk</span>
@@ -321,9 +333,16 @@
     </main>
   </div>
 
+  <script src="oneapi-sdk.js"></script>
   <script>
     const baseUrl = localStorage.getItem('oneapi_chat_base_url') || 'http://localhost:5000';
     const apiKey = localStorage.getItem('oneapi_chat_api_key') || localStorage.getItem('oneapi_latest_raw_developer_api_key') || '';
+
+    // Initialize OneAPI SDK
+    const oneapi = new OneAPI({
+      apiKey,
+      baseURL: `${baseUrl.replace(/\/$/, '')}/api/v1`,
+    });
 
     const musicInput = document.getElementById('musicInput');
     const searchMusicBtn = document.getElementById('searchMusicBtn');
@@ -337,88 +356,79 @@
     const playerTrackTitle = document.getElementById('playerTrackTitle');
     const playerTrackArtist = document.getElementById('playerTrackArtist');
 
+    let currentSelectedProvider = '';
+
     async function searchMusic(query) {
       searchMusicBtn.textContent = 'Searching...';
       tracksGrid.innerHTML = '<div style="color: #a1a1aa; padding: 20px;">Searching music catalog across Deezer & Apple iTunes...</div>';
       const startTime = performance.now();
 
       try {
-        const headers = { 'Content-Type': 'application/json' };
-        if (apiKey) {
-          headers['x-api-key'] = apiKey;
-          headers['Authorization'] = `Bearer ${apiKey}`;
-        }
-
-        const res = await fetch(`${baseUrl.replace(/\/$/, '')}/api/v1/proxy/music/search?q=${encodeURIComponent(query)}&limit=12`, {
-          method: 'GET',
-          headers,
+        const res = await oneapi.music.search({
+          query,
+          limit: 12,
+          provider: currentSelectedProvider || undefined,
         });
 
-        const data = await res.json();
         const latency = Math.round(performance.now() - startTime);
+        const tracks = res.tracks || [];
 
-        if (res.ok && data.success !== false) {
-          const payload = data.data || data;
-          const tracks = payload.tracks || [];
+        // Telemetry
+        const finalProv = res._oneapi?.finalProvider || res.provider || 'itunes';
+        musicProviderVal.textContent = finalProv;
+        musicLatencyVal.textContent = latency + 'ms';
+        musicCountVal.textContent = `${tracks.length} tracks found`;
 
-          // Telemetry
-          const finalProv = data._oneapi?.finalProvider || payload.provider || 'itunes';
-          musicProviderVal.textContent = finalProv;
-          musicLatencyVal.textContent = latency + 'ms';
-          musicCountVal.textContent = `${tracks.length} tracks found`;
+        if (tracks.length === 0) {
+          tracksGrid.innerHTML = '<div style="color: #a1a1aa; padding: 20px;">No tracks found for this query.</div>';
+          return;
+        }
 
-          if (tracks.length === 0) {
-            tracksGrid.innerHTML = '<div style="color: #a1a1aa; padding: 20px;">No tracks found for this query.</div>';
-            return;
+        tracksGrid.innerHTML = '';
+        tracks.forEach(track => {
+          const card = document.createElement('div');
+          card.className = 'track-card';
+          const cover = track.albumCover || track.coverUrl || 'https://via.placeholder.com/300x300.png?text=Music';
+          card.innerHTML = `
+            <div class="track-artwork-box">
+              <img src="${cover}" alt="${track.title}" onerror="this.src='https://via.placeholder.com/300x300.png?text=Music'" />
+              ${track.previewUrl ? `
+                <div class="play-btn-overlay" data-preview="${track.previewUrl}" data-title="${encodeURIComponent(track.title)}" data-artist="${encodeURIComponent(track.artist)}" data-cover="${cover}">
+                  <div class="play-circle">▶</div>
+                </div>
+              ` : ''}
+            </div>
+            <div>
+              <div class="track-title" title="${track.title}">${track.title}</div>
+              <div class="track-artist">${track.artist}</div>
+            </div>
+            <div class="track-footer">
+              <span>${track.durationFormatted || ''}</span>
+              <span>${track.provider || finalProv}</span>
+            </div>
+          `;
+
+          const playBtn = card.querySelector('.play-btn-overlay');
+          if (playBtn) {
+            playBtn.addEventListener('click', () => {
+              const preview = playBtn.getAttribute('data-preview');
+              const title = decodeURIComponent(playBtn.getAttribute('data-title'));
+              const artist = decodeURIComponent(playBtn.getAttribute('data-artist'));
+              const c = playBtn.getAttribute('data-cover');
+
+              playerThumb.src = c;
+              playerTrackTitle.textContent = title;
+              playerTrackArtist.textContent = artist;
+              audioElement.src = preview;
+              audioPlayerBar.classList.add('active');
+              audioElement.play();
+            });
           }
 
-          tracksGrid.innerHTML = '';
-          tracks.forEach(track => {
-            const card = document.createElement('div');
-            card.className = 'track-card';
-            card.innerHTML = `
-              <div class="track-artwork-box">
-                <img src="${track.albumCover || 'https://via.placeholder.com/300x300.png?text=Music'}" alt="${track.title}" onerror="this.src='https://via.placeholder.com/300x300.png?text=Music'" />
-                ${track.previewUrl ? `
-                  <div class="play-btn-overlay" data-preview="${track.previewUrl}" data-title="${encodeURIComponent(track.title)}" data-artist="${encodeURIComponent(track.artist)}" data-cover="${track.albumCover}">
-                    <div class="play-circle">▶</div>
-                  </div>
-                ` : ''}
-              </div>
-              <div>
-                <div class="track-title" title="${track.title}">${track.title}</div>
-                <div class="track-artist">${track.artist}</div>
-              </div>
-              <div class="track-footer">
-                <span>${track.durationFormatted || ''}</span>
-                <span>${track.provider || finalProv}</span>
-              </div>
-            `;
-
-            const playBtn = card.querySelector('.play-btn-overlay');
-            if (playBtn) {
-              playBtn.addEventListener('click', () => {
-                const preview = playBtn.getAttribute('data-preview');
-                const title = decodeURIComponent(playBtn.getAttribute('data-title'));
-                const artist = decodeURIComponent(playBtn.getAttribute('data-artist'));
-                const cover = playBtn.getAttribute('data-cover');
-
-                playerThumb.src = cover;
-                playerTrackTitle.textContent = title;
-                playerTrackArtist.textContent = artist;
-                audioElement.src = preview;
-                audioPlayerBar.classList.add('active');
-                audioElement.play();
-              });
-            }
-
-            tracksGrid.appendChild(card);
-          });
-        } else {
-          tracksGrid.innerHTML = `<div style="color: #f43f5e; padding: 20px;">Error: ${data.error?.message || 'Failed to search'}</div>`;
-        }
+          tracksGrid.appendChild(card);
+        });
       } catch (err) {
-        tracksGrid.innerHTML = `<div style="color: #f43f5e; padding: 20px;">Network Error: Cannot reach ${baseUrl}</div>`;
+        tracksGrid.innerHTML = `<div style="color: #f43f5e; padding: 20px;">Error: ${err.message || 'Failed to search'}</div>`;
       } finally {
         searchMusicBtn.textContent = 'Search →';
       }
@@ -436,12 +446,24 @@
       }
     });
 
+    // Artist quick chips
     document.querySelectorAll('.artist-chip').forEach(chip => {
       chip.addEventListener('click', () => {
         document.querySelectorAll('.artist-chip').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
         const q = chip.getAttribute('data-q');
         musicInput.value = q;
+        searchMusic(q);
+      });
+    });
+
+    // Provider buttons
+    document.querySelectorAll('.provider-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.provider-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentSelectedProvider = btn.getAttribute('data-provider');
+        const q = musicInput.value.trim() || 'Daft Punk';
         searchMusic(q);
       });
     });

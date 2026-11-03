@@ -69,6 +69,13 @@ export async function proxyAiChat(
     res.status(200).json({
       success: true,
       data: result.data,
+      id: result.data.id,
+      object: result.data.object,
+      created: result.data.created,
+      model: result.data.model,
+      choices: result.data.choices,
+      usage: result.data.usage,
+      provider: result.data.provider,
       _oneapi: result.meta,
     });
   } catch (err: any) {
@@ -155,6 +162,10 @@ export async function proxyMusicSearch(
     res.status(200).json({
       success: true,
       data: result.data,
+      query: result.data.query,
+      total: result.data.total,
+      tracks: result.data.tracks,
+      provider: result.data.provider,
       _oneapi: result.meta,
     });
   } catch (err: any) {
@@ -202,6 +213,11 @@ export async function proxyWeatherCurrent(
     res.status(200).json({
       success: true,
       data: result.data,
+      location: result.data.location,
+      coordinates: result.data.coordinates,
+      current: result.data.current,
+      provider: result.data.provider,
+      timestamp: result.data.timestamp,
       _oneapi: result.meta,
     });
   } catch (err: any) {
@@ -248,6 +264,10 @@ export async function proxyNewsSearch(
     res.status(200).json({
       success: true,
       data: result.data,
+      query: result.data.query,
+      total: result.data.total,
+      articles: result.data.articles,
+      provider: result.data.provider,
       _oneapi: result.meta,
     });
   } catch (err: any) {
@@ -295,6 +315,11 @@ export async function proxyEnvironmentAir(
     res.status(200).json({
       success: true,
       data: result.data,
+      location: result.data.location,
+      coordinates: result.data.coordinates,
+      airQuality: result.data.airQuality,
+      provider: result.data.provider,
+      timestamp: result.data.timestamp,
       _oneapi: result.meta,
     });
   } catch (err: any) {

@@ -23,7 +23,7 @@ import { fetchApi } from '@/lib/api';
 interface ExampleAppMeta {
   id: string;
   title: string;
-  category: 'ai' | 'weather' | 'music' | 'environment';
+  category: 'ai' | 'weather' | 'music' | 'news' | 'environment';
   tagline: string;
   icon: string;
   badge: string;
@@ -59,7 +59,7 @@ const APPS: ExampleAppMeta[] = [
     badge: 'Weather App',
     badgeColor: 'bg-sky-500/15 text-sky-300',
     proxyEndpoint: 'GET /api/v1/proxy/weather/current?city=...',
-    failoverRoute: 'Open-Meteo Weather API → Weatherstack / wttr.in',
+    failoverRoute: 'Open-Meteo Weather API → Weatherstack (APILayer)',
     demoUrl: 'http://localhost:5000/example/weather.html',
     defaultQuery: 'San Francisco',
     placeholder: 'Enter city name (e.g. Tokyo, London, Paris, Delhi)...',
@@ -77,6 +77,20 @@ const APPS: ExampleAppMeta[] = [
     demoUrl: 'http://localhost:5000/example/music.html',
     defaultQuery: 'Daft Punk',
     placeholder: 'Search song or artist (e.g. The Weeknd, Queen, Adele)...',
+  },
+  {
+    id: 'news',
+    title: 'Real-Time News Radar',
+    category: 'news',
+    tagline: 'Curated real-time technology discussions and spaceflight aerospace news reports with automated fallback.',
+    icon: '📰',
+    badge: 'News Radar',
+    badgeColor: 'bg-amber-500/15 text-amber-300',
+    proxyEndpoint: 'GET /api/v1/proxy/news/search?q=...&limit=6',
+    failoverRoute: 'HackerNews Algolia API → Spaceflight News API (v4)',
+    demoUrl: 'http://localhost:5000/example/news.html',
+    defaultQuery: 'technology',
+    placeholder: 'Search tech or space news (e.g. quantum, SpaceX, rust)...',
   },
   {
     id: 'environment',
@@ -100,7 +114,8 @@ export default function ExamplesShowcasePage() {
     chat: APPS[0].defaultQuery,
     weather: APPS[1].defaultQuery,
     music: APPS[2].defaultQuery,
-    environment: APPS[3].defaultQuery,
+    news: APPS[3].defaultQuery,
+    environment: APPS[4].defaultQuery,
   });
   const [loadingApp, setLoadingApp] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, any>>({});
@@ -130,6 +145,8 @@ export default function ExamplesShowcasePage() {
         endpoint = `/api/v1/proxy/weather/current?city=${encodeURIComponent(q)}`;
       } else if (appId === 'music') {
         endpoint = `/api/v1/proxy/music/search?q=${encodeURIComponent(q)}&limit=6`;
+      } else if (appId === 'news') {
+        endpoint = `/api/v1/proxy/news/search?q=${encodeURIComponent(q)}&limit=6`;
       } else if (appId === 'environment') {
         endpoint = `/api/v1/proxy/environment/air-quality?city=${encodeURIComponent(q)}`;
       }
@@ -386,6 +403,28 @@ export default function ExamplesShowcasePage() {
                       <div className="text-xs font-bold text-white truncate">{t.title}</div>
                       <div className="text-[11px] text-slate-400 truncate">{t.artist}</div>
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeApp.id === 'news' && currentResult.data?.articles && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 font-sans">
+                {currentResult.data.articles.slice(0, 3).map((a: any, idx: number) => (
+                  <div key={idx} className="p-3 rounded-xl bg-slate-900/90 flex flex-col justify-between gap-2">
+                    <div>
+                      <div className="text-[10px] text-amber-400 font-bold mb-1">{a.source}</div>
+                      <div className="text-xs font-bold text-white line-clamp-2">{a.title}</div>
+                    </div>
+                    <a
+                      href={a.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-amber-400 hover:underline flex items-center gap-1 font-semibold"
+                    >
+                      <span>Read Story</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
                   </div>
                 ))}
               </div>

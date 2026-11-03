@@ -12,7 +12,7 @@ export class GroqAiAdapter implements IProviderAdapter<UnifiedAiRequest, Unified
 
     if (!apiKey) {
       const err = new Error('Groq API key is required. Please add your Groq API key to the project vault or set GROQ_API_KEY.');
-      (err as any).statusCode = 503;
+      (err as any).statusCode = 401;
       throw err;
     }
 
@@ -43,22 +43,36 @@ export class GroqAiAdapter implements IProviderAdapter<UnifiedAiRequest, Unified
         throw err;
       }
 
-      const data = await response.json() as any;
+      const data = (await response.json()) as any;
+      const promptTokens = data.usage?.prompt_tokens ?? 0;
+      const completionTokens = data.usage?.completion_tokens ?? 0;
+      const totalTokens = data.usage?.total_tokens ?? (promptTokens + completionTokens);
+
       return {
-        choices: data.choices.map((c: any) => ({
-          index: c.index ?? 0,
-          message: {
-            role: c.message.role,
-            content: c.message.content,
-          },
-          finishReason: c.finish_reason,
-        })),
+        id: data.id || `chatcmpl-groq-${Date.now()}`,
+        object: data.object || 'chat.completion',
+        created: data.created || Math.floor(Date.now() / 1000),
+        choices: (data.choices || []).map((c: any) => {
+          const finish = c.finish_reason || 'stop';
+          return {
+            index: c.index ?? 0,
+            message: {
+              role: c.message?.role || 'assistant',
+              content: c.message?.content || '',
+            },
+            finishReason: finish,
+            finish_reason: finish,
+          };
+        }),
         model: data.model || model,
         provider: this.id,
         usage: {
-          promptTokens: data.usage?.prompt_tokens,
-          completionTokens: data.usage?.completion_tokens,
-          totalTokens: data.usage?.total_tokens,
+          promptTokens,
+          completionTokens,
+          totalTokens,
+          prompt_tokens: promptTokens,
+          completion_tokens: completionTokens,
+          total_tokens: totalTokens,
         },
       };
     } finally {

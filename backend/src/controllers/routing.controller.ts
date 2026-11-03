@@ -23,10 +23,20 @@ export async function getRoutingRules(
       const existing = savedRules.find((r) => r.category === cat);
       const defaults = providerRegistry.getDefaultRouting(cat);
 
+      const fallbackList =
+        existing?.fallbackProviderIds && existing.fallbackProviderIds.length > 0
+          ? existing.fallbackProviderIds
+          : existing?.fallbackProviderId && existing.fallbackProviderId !== 'none'
+          ? [existing.fallbackProviderId]
+          : defaults.fallback !== 'none'
+          ? [defaults.fallback]
+          : [];
+
       return {
         category: cat,
         primaryProviderId: existing?.primaryProviderId || defaults.primary,
         fallbackProviderId: existing?.fallbackProviderId ?? defaults.fallback,
+        fallbackProviderIds: fallbackList,
         timeoutMs: existing?.timeoutMs || (cat === 'ai' ? 25000 : 5000),
         retryOnStatusCodes: existing?.retryOnStatusCodes || [400, 401, 402, 403, 404, 410, 429, 500, 502, 503, 504],
         isCustomized: !!existing,
@@ -59,7 +69,7 @@ export async function updateRoutingRule(
 ): Promise<void> {
   try {
     const user = req.user!;
-    const { category, primaryProviderId, fallbackProviderId, timeoutMs, retryOnStatusCodes } = req.body;
+    const { category, primaryProviderId, fallbackProviderId, fallbackProviderIds, timeoutMs, retryOnStatusCodes } = req.body;
 
     if (!category || !primaryProviderId) {
       res.status(400).json({
@@ -94,28 +104,40 @@ export async function updateRoutingRule(
       return;
     }
 
-    // Normalized fallback: 'none', empty string, or registered provider ID
-    const effectiveFallback =
-      fallbackProviderId && fallbackProviderId !== 'none' && fallbackProviderId !== 'disabled'
-        ? fallbackProviderId
-        : 'none';
-
-    if (effectiveFallback !== 'none' && !providerRegistry.has(category, effectiveFallback)) {
-      res.status(400).json({
-        success: false,
-        error: {
-          code: 'INVALID_FALLBACK_PROVIDER',
-          message: `Fallback provider "${effectiveFallback}" is not registered under category "${category}".`,
-        },
-      });
-      return;
+    // Normalized cascade of fallbacks: support multiple fallback providers in order!
+    let effectiveFallbacks: string[] = [];
+    if (Array.isArray(fallbackProviderIds)) {
+      effectiveFallbacks = fallbackProviderIds.filter(
+        (id) => typeof id === 'string' && id.trim() && id !== 'none' && id !== 'disabled' && id !== primaryProviderId
+      );
+    } else if (fallbackProviderId && fallbackProviderId !== 'none' && fallbackProviderId !== 'disabled') {
+      effectiveFallbacks = [fallbackProviderId];
     }
+
+    // Deduplicate while preserving priority order
+    effectiveFallbacks = Array.from(new Set(effectiveFallbacks));
+
+    for (const fbId of effectiveFallbacks) {
+      if (!providerRegistry.has(category, fbId)) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_FALLBACK_PROVIDER',
+            message: `Fallback provider "${fbId}" is not registered under category "${category}".`,
+          },
+        });
+        return;
+      }
+    }
+
+    const effectiveFallback = effectiveFallbacks[0] || 'none';
 
     const rule = await RoutingRule.findOneAndUpdate(
       { userId: user._id, category },
       {
         primaryProviderId,
         fallbackProviderId: effectiveFallback,
+        fallbackProviderIds: effectiveFallbacks,
         timeoutMs: timeoutMs && timeoutMs > 0 ? timeoutMs : (category === 'ai' ? 25000 : 5000),
         ...(retryOnStatusCodes && { retryOnStatusCodes }),
       },
@@ -124,7 +146,7 @@ export async function updateRoutingRule(
 
     res.status(200).json({
       success: true,
-      message: `Routing for category "${category}" updated: Primary=${primaryProviderId}, Fallback=${effectiveFallback}`,
+      message: `Routing for category "${category}" updated: Primary=${primaryProviderId}, Fallbacks=[${effectiveFallbacks.join(' -> ')}]`,
       data: {
         rule,
         routingRule: rule,
