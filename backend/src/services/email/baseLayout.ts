@@ -164,7 +164,7 @@ export function renderBaseEmailLayout({
   <div class="wrapper">
     <div class="container">
       <div class="header">
-        <a href="#" class="header-logo">⚡ HackVsak</a>
+        <a href="#" class="header-logo">⚡ OneAPI</a>
         <div class="header-tagline">Secure Authentication & API Service</div>
       </div>
       <div class="content">
@@ -172,7 +172,7 @@ export function renderBaseEmailLayout({
       </div>
       <div class="footer">
         <p>${footerText}</p>
-        <p>© ${currentYear} HackVsak. All rights reserved.</p>
+        <p>© ${currentYear} OneAPI. All rights reserved.</p>
       </div>
     </div>
   </div>

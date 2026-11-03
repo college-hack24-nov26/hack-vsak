@@ -21,11 +21,11 @@ export function getApiKeyCreatedTemplate({
   timestamp = new Date().toUTCString(),
   ipAddress = 'Unknown IP',
 }: ApiKeyCreatedTemplateParams): EmailContent {
-  const subject = `New API Key Generated: "${keyName}" - HackVsak`;
+  const subject = `New API Key Generated: "${keyName}" - OneAPI`;
 
   const bodyContent = `
     <div class="greeting">Hello ${name || 'Developer'},</div>
-    <p>A new API key was successfully generated for your HackVsak account (<strong>${email}</strong>).</p>
+    <p>A new API key was successfully generated for your OneAPI account (<strong>${email}</strong>).</p>
 
     <table class="info-table">
       <tr>
@@ -55,19 +55,19 @@ export function getApiKeyCreatedTemplate({
       </ul>
     </div>
 
-    <p style="color: #64748b; font-size: 13px;">If you did not authorize the creation of this API key, revoke it immediately from your HackVsak dashboard to prevent unauthorized API requests.</p>
+    <p style="color: #64748b; font-size: 13px;">If you did not authorize the creation of this API key, revoke it immediately from your OneAPI dashboard to prevent unauthorized API requests.</p>
   `;
 
   const html = renderBaseEmailLayout({
     title: 'New API Key Created',
     previewText: `API Key "${keyName}" (${keyPrefix}) was created on ${timestamp}.`,
     bodyContent,
-    footerText: 'HackVsak Developer Security Notifications',
+    footerText: 'OneAPI Developer Security Notifications',
   });
 
   const text = `Hello ${name || 'Developer'},
 
-A new API key has been generated for your HackVsak account (${email}).
+A new API key has been generated for your OneAPI account (${email}).
 
 API Key Details:
 - Key Name: ${keyName}

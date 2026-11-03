@@ -1,65 +1,89 @@
-# OneAPI & Backend Testing Suite
+# OneAPI Chat — Multi-Provider Proxy AI Assistant
 
-An interactive web application designed to test all backend endpoints of OneAPI and Authentication without relying on third-party tools like Postman.
+A complete, standalone chatting web application built with vanilla HTML, CSS, and modern JavaScript, powered by the **OneAPI Multi-Provider Proxy Gateway** (`POST /api/v1/proxy/ai/chat`).
 
 ---
 
-## 🚀 How to Run
+## 🔑 Required Keys & Configuration List
+
+The required keys and credentials are documented directly at the top of [`example/app.js`](app.js#L1-L45) and can be configured through the **Credentials Panel** in the UI:
+
+### 1. Client Authentication Credentials (Need ONE of the following):
+- **Project Gateway Token (Recommended):**
+  - **Header:** `x-project-token: oneapi_dev_...` (or `Authorization: Bearer oneapi_dev_...`)
+  - **Where to get:** Open Developer Dashboard (`http://localhost:3000/dashboard`) &rarr; **Projects** tab &rarr; Copy Project Token.
+  - **Format:** `oneapi_dev_<48 hex chars>`
+- **Developer API Key (Alternative):**
+  - **Header:** `x-api-key: oneapi_...`
+  - **Where to get:** Dashboard &rarr; **API Keys** tab &rarr; Generate Key.
+  - **Format:** `oneapi_<token>`
+
+### 2. Backend Third-Party Provider Keys (Stored in AES-256-GCM Vault):
+These keys are **never exposed in frontend code**. The backend gateway automatically decrypts and routes them during requests:
+- **Google Gemini API Key (Primary AI Provider):**
+  - Free API Key from: [https://aistudio.google.com](https://aistudio.google.com)
+  - Configure via: Dashboard &rarr; **API Providers** &rarr; Gemini &rarr; **Connect / Config**
+- **Groq Cloud API Key (Automatic Fallback AI Provider):**
+  - Free API Key from: [https://console.groq.com](https://console.groq.com)
+  - Configure via: Dashboard &rarr; **API Providers** &rarr; Groq &rarr; **Connect / Config**
+
+---
+
+## 🚀 How to Run the Chat App
 
 ### Option 1: Direct File Open
-Simply double-click or open `example/index.html` directly in your browser:
+Open `example/index.html` directly in any web browser:
 ```text
 file:///d:/hackthon/hack-vsak/example/index.html
 ```
 
 ### Option 2: Run with any Local Static Server
-If you prefer running via HTTP:
 ```bash
-# Using python
-cd example
-python -m http.server 3000
+# Using npx serve (runs on port 8080 or any free port)
+npx serve example -p 8080
 
-# Or using npx serve
-npx serve example
+# Or using Python 3
+cd example
+python -m http.server 8080
 ```
-Then visit `http://localhost:3000`.
+Then visit `http://localhost:8080`.
 
 ---
 
-## 🧪 What You Can Test
+## ⚡ How It Works with the Backend Proxy
 
-1. **System & Health**:
-   - Live server ping and database status indicator.
-   - Provider registry discovery (`GET /api/v1/proxy/providers`).
-   - Authentication route catalog (`GET /api/v1/auth`).
+```
+┌────────────────────────┐
+│  example/index.html    │ (Chat Web App)
+└───────────┬────────────┘
+            │  POST /api/v1/proxy/ai/chat
+            │  Header: x-project-token: oneapi_dev_...
+            ▼
+┌────────────────────────┐
+│  OneAPI Gateway        │ (Backend: http://localhost:5000)
+│  - Decrypts Vault Key  │
+│  - Checks Health       │
+└───────────┬────────────┘
+            │
+            ├─► 1. Primary: Google Gemini 1.5 Flash ───► (Response)
+            │      (If 429, Timeout, or Outage)
+            │
+            └─► 2. Fallback: Groq Cloud Llama 3 ────────► (Response)
+```
 
-2. **Complete Authentication Flow**:
-   - **Signup**: Input name, phone number, email, password, and accept terms.
-   - **Verify OTP**: Input the 6-digit code received in your email (or printed in the backend console during development). Automatically stores the JWT access token for subsequent requests.
-   - **Resend OTP**: Request a new 6-digit code.
-   - **Login**: Authenticate credentials; automatically saves JWT tokens and user details.
-   - **Password Recovery**: Test `/forgot-password` and `/reset-password`.
-   - **Profile & Session**: Fetch profile via `/me`, refresh access token, and logout.
+1. The chat app sends conversation messages to `http://localhost:5000/api/v1/proxy/ai/chat`.
+2. The OneAPI Gateway resolves the project routing rules and decrypts the provider credential from the AES-256-GCM vault.
+3. If Google Gemini responds normally, it returns the reply with header `x-oneapi-provider: gemini`.
+4. If Gemini encounters rate-limiting (429) or timeouts, the gateway automatically executes the query on Groq Cloud and returns the response with `x-oneapi-failover: true` and `x-oneapi-provider: groq`.
+5. The chat UI immediately reflects whether the primary provider or fallback provider fulfilled the query alongside latency in milliseconds.
 
-3. **Developer API Keys (CRUD & AI)**:
-   - **Generate Key**: Create a new `sk_live_...` key.
-   - **List Keys**: View all active keys and masked previews.
-   - **Update / Revoke**: Rename key, toggle active status, or delete key.
-   - **AI Validation**: Test `/api/v1/auth/api-keys/validate` simulating an AI agent validating a key against `userId` and `email`.
+---
 
-4. **OneAPI Projects & Vault**:
-   - **Create Project**: Generates a project token (`oneapi_dev_token_xxx`).
-   - **Encrypted Vault**: Store third-party provider keys safely encrypted with AES-256-GCM.
-   - **Routing Configuration**: Configure Primary & Fallback provider pairs.
-
-5. **OneAPI Gateway Proxy with Automatic Failover**:
-   - 🤖 **AI Chat**: Send prompts to Gemini; if Gemini fails (e.g. rate limit), automatically falls over to Groq / Pollinations AI!
-   - 🎵 **Music Search**: Search tracks with Deezer ➔ iTunes failover, with audio previews.
-   - ⛅ **Weather**: Real-time forecast with Open-Meteo ➔ Weatherstack failover.
-   - 📰 **News**: Search articles with HackerNews ➔ Spaceflight failover.
-   - 🌿 **Environment**: Air quality metrics with OpenAQ ➔ Open-Meteo Atmospheric Air failover.
-
-6. **Live Response & Network Inspector**:
-   - Real-time HTTP status codes and millisecond latency tracking.
-   - Automatic detection of `X-OneAPI-Fallback` header with failover badge (`FAILOVER (primary ➔ fallback)`).
-   - Formatted, copyable JSON response viewer.
+## 🧪 Features Included
+- **Zero-Downtime Multi-Provider AI Chat:** Full conversation history sent to the proxy endpoint.
+- **Provider & Latency Telemetry:** Real-time badges for provider used, latency (ms), and automatic failover flags.
+- **Typing Indicator Animation:** Pulsing dots while waiting for the proxy gateway.
+- **Markdown Support:** Syntax-highlighted code blocks, inline code, bold text, and lists.
+- **Quick Prompts:** 4 pre-built developer prompts for instant testing.
+- **Local Persistence:** Chat history and credentials saved in `localStorage`.
+- **Export Option:** Export chat logs to JSON with 1 click.

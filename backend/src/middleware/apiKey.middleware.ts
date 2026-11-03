@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import { User, type IUser, type IApiKey } from '../models/User.js';
-import { hashToken } from '../utils/crypto.js';
+import { hashToken, safeCompare } from '../utils/crypto.js';
 import { AuditLog } from '../models/AuditLog.js';
 
 export interface ApiKeyAuthenticatedRequest extends Request {
@@ -54,12 +55,14 @@ export async function validateApiKey(
       return;
     }
 
-    // Find user matching both user_id (or _id) and email
+    // Find user matching both user_id (or _id) and email safely
     const query: Record<string, any> = { email: userEmail.toLowerCase() };
-    if (userId.startsWith('usr_')) {
+    if (typeof userId === 'string' && userId.startsWith('usr_')) {
       query.user_id = userId;
-    } else {
+    } else if (typeof userId === 'string' && mongoose.Types.ObjectId.isValid(userId)) {
       query.$or = [{ user_id: userId }, { _id: userId }];
+    } else if (typeof userId === 'string') {
+      query.user_id = userId;
     }
 
     const user = await User.findOne(query).select('+apiKeys.keyHash');
@@ -75,7 +78,7 @@ export async function validateApiKey(
     }
 
     const hashedKey = hashToken(rawApiKey);
-    const keyRecord = user.apiKeys.find((k) => k.keyHash === hashedKey);
+    const keyRecord = user.apiKeys.find((k) => safeCompare(k.keyHash, hashedKey));
 
     if (!keyRecord) {
       res.status(401).json({

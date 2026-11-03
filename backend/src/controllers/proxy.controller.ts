@@ -24,15 +24,30 @@ export async function proxyAiChat(
 ): Promise<void> {
   try {
     const project = req.project!;
-    const { messages, model, temperature, maxTokens } = req.body;
+    const { model, temperature, maxTokens } = req.body;
 
-    if (!messages || !Array.isArray(messages)) {
+    // Support both standardized messages array and prompt string formats (e.g. from dashboard live tester)
+    let rawMessages = req.body?.messages;
+    if (!rawMessages && req.body?.prompt) {
+      rawMessages = [{ role: 'user', content: String(req.body.prompt) }];
+    } else if (!rawMessages && req.body?.message) {
+      rawMessages = [{ role: 'user', content: String(req.body.message) }];
+    } else if (!rawMessages && req.body?.query) {
+      rawMessages = [{ role: 'user', content: String(req.body.query) }];
+    }
+
+    if (!rawMessages || !Array.isArray(rawMessages) || rawMessages.length === 0) {
       res.status(400).json({
         success: false,
-        error: { code: 'INVALID_MESSAGES', message: 'messages must be an array of { role, content }.' },
+        error: { code: 'INVALID_MESSAGES', message: 'messages must be an array of { role, content } or a prompt string.' },
       });
       return;
     }
+
+    const messages = rawMessages.map((m: any) => ({
+      role: m?.role === 'assistant' || m?.role === 'model' ? 'assistant' : 'user',
+      content: typeof m?.content === 'string' ? m.content : typeof m === 'string' ? m : String(m?.content ?? ''),
+    }));
 
     const result = await proxyEngine.execute({
       project,

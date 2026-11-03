@@ -17,11 +17,11 @@ export function getForgotPasswordTemplate({
   otp,
   expiresInMinutes = 15,
 }: ForgotPasswordTemplateParams): EmailContent {
-  const subject = `Reset Your Password: Code ${otp} - HackVsak`;
+  const subject = `Reset Your Password: Code ${otp} - OneAPI`;
 
   const bodyContent = `
     <div class="greeting">Hello ${name || 'User'},</div>
-    <p>We received a request to reset the password for your HackVsak account associated with <strong>${email}</strong>.</p>
+    <p>We received a request to reset the password for your OneAPI account associated with <strong>${email}</strong>.</p>
     
     <p>Use the following password reset code to set a new password:</p>
 
@@ -43,7 +43,7 @@ export function getForgotPasswordTemplate({
 
   const text = `Hello ${name || 'User'},
 
-We received a request to reset your password for HackVsak (${email}).
+We received a request to reset your password for OneAPI (${email}).
 
 Your password reset code is: ${otp}
 This code will expire in ${expiresInMinutes} minutes.

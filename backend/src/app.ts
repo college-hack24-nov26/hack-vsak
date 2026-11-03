@@ -1,5 +1,5 @@
 import express from 'express';
-import type { Application, Request, Response } from 'express';
+import type { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -20,24 +20,65 @@ export function createApp(): Application {
   // 1. Trust proxy for reverse proxies / load balancers
   app.set('trust proxy', 1);
 
-  // 2. Security Headers with Helmet
+  // 2. Universal CORS & Preflight Handler: Permits ANY origin, method, and header (zero CORS errors)
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
+
+    const requestedHeaders = req.headers['access-control-request-headers'];
+    if (requestedHeaders) {
+      res.setHeader('Access-Control-Allow-Headers', requestedHeaders);
+    } else {
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-project-token, x-api-key, x-user-id, x-user-email, x-project-id'
+      );
+    }
+
+    res.setHeader(
+      'Access-Control-Expose-Headers',
+      'X-OneAPI-Fallback, X-OneAPI-Fallback-Reason, X-OneAPI-Primary-Provider, X-OneAPI-Final-Provider, X-OneAPI-Latency-MS, Authorization'
+    );
+    res.setHeader('Access-Control-Max-Age', '86400');
+
+    // Instantly satisfy OPTIONS preflight requests with 204 No Content
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
+    }
+
+    next();
+  });
+
+  // 3. Security Headers with Helmet
   app.use(
     helmet({
-      contentSecurityPolicy: false, // Useful for dev/APIs
+      contentSecurityPolicy: false,
       crossOriginResourcePolicy: { policy: 'cross-origin' },
+      crossOriginOpenerPolicy: false,
     })
   );
 
-  // 3. CORS Configuration: Allow any IP / Origin to access backend for now
+  // 4. Standard cors() middleware for complete compatibility
   app.use(
     cors({
-      origin: (_origin, callback) => {
-        // Allows any incoming IP or domain (e.g. localhost, local network IPs, cloud hosts)
-        callback(null, true);
-      },
+      origin: true,
       credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+      exposedHeaders: [
+        'X-OneAPI-Fallback',
+        'X-OneAPI-Fallback-Reason',
+        'X-OneAPI-Primary-Provider',
+        'X-OneAPI-Final-Provider',
+        'X-OneAPI-Latency-MS',
+        'Authorization',
+      ],
     })
   );
 

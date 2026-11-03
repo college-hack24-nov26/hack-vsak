@@ -3,674 +3,166 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OneAPI & Auth Full Backend Testing Suite</title>
+  <title>OneAPI Chat — Multi-Provider Proxy AI Assistant</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Header -->
-  <header class="app-header">
-    <div class="brand">
-      <div class="brand-badge">⚡ OneAPI</div>
-      <div>
-        <h1>Backend Testing Suite</h1>
-        <div class="brand-subtitle">Interactive Full-Stack API Tester & Live Proxy Inspector</div>
+  <div class="chat-app-layout">
+    <!-- Top Header -->
+    <header class="chat-header">
+      <div class="header-brand">
+        <div class="brand-logo">⚡</div>
+        <div>
+          <div class="brand-title">One<span class="highlight">API</span> Chat</div>
+          <div class="brand-subtitle">Unified Multi-Provider AI Proxy Gateway</div>
+        </div>
+      </div>
+
+      <div class="header-center" id="activeProviderDisplay">
+        <span class="provider-tag primary">⚡ Primary: Gemini (1.5 Flash)</span>
+      </div>
+
+      <div class="header-actions">
+        <!-- Backend Status Indicator -->
+        <div class="server-status-pill">
+          <span class="status-dot offline" id="serverStatusDot"></span>
+          <span id="serverStatusText" class="status-text">Checking...</span>
+        </div>
+
+        <!-- Open Dashboard Link -->
+        <a href="http://localhost:3000/dashboard" target="_blank" class="btn-icon" title="Open OneAPI Developer Dashboard">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="3" y1="9" x2="21" y2="9"></line>
+            <line x1="9" y1="21" x2="9" y2="9"></line>
+          </svg>
+          <span class="btn-label">Dashboard</span>
+        </a>
+
+        <!-- Export Chat -->
+        <button id="exportChatBtn" class="btn-icon" title="Export conversation as JSON">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </button>
+
+        <!-- Clear Chat -->
+        <button id="clearChatBtn" class="btn-icon" title="Clear chat history">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+
+        <!-- Configuration Toggle -->
+        <button id="configToggleBtn" class="btn-settings" title="Proxy Gateway Credentials">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>Credentials</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Key Status Alert Pill -->
+    <div id="keyStatusBanner" class="key-status-container"></div>
+
+    <!-- Collapsible Credentials Panel -->
+    <div id="configPanel" class="config-panel">
+      <div class="config-content">
+        <div class="config-header">
+          <div class="config-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 2l-2 2m-1.5 1.5L4 19l-2 3 3-2 13.5-13.5m1.5-1.5L22 4"></path>
+            </svg>
+            <span>OneAPI Proxy Gateway Credentials</span>
+          </div>
+          <button class="btn-close" onclick="document.getElementById('configPanel').classList.remove('open')">✕</button>
+        </div>
+
+        <p class="config-desc">
+          Configure client authentication keys to send queries through the unified proxy URL:
+          <code>POST /api/v1/proxy/ai/chat</code>.
+        </p>
+
+        <div class="config-grid">
+          <div class="config-field">
+            <label for="baseUrlInput">Backend Gateway URL</label>
+            <input type="text" id="baseUrlInput" placeholder="http://localhost:5000">
+            <span class="field-hint">Default local backend server port 5000</span>
+          </div>
+
+          <div class="config-field">
+            <label for="projectTokenInput">
+              Project Gateway Token (Recommended)
+              <span class="required-badge">Required</span>
+            </label>
+            <input type="password" id="projectTokenInput" placeholder="oneapi_dev_••••••••••••••••">
+            <span class="field-hint">
+              From <a href="http://localhost:3000/dashboard" target="_blank">Dashboard &gt; Projects</a> tab (e.g. <code>oneapi_dev_...</code>)
+            </span>
+          </div>
+
+          <div class="config-field">
+            <label for="apiKeyInput">Developer API Key (Alternative)</label>
+            <input type="password" id="apiKeyInput" placeholder="oneapi_••••••••••••••••">
+            <span class="field-hint">
+              From <a href="http://localhost:3000/dashboard" target="_blank">Dashboard &gt; API Keys</a> tab
+            </span>
+          </div>
+        </div>
+
+        <div class="vault-info-box">
+          <div class="info-title">🔒 What about third-party provider keys?</div>
+          <div class="info-body">
+            Provider credentials (such as Google Gemini and Groq) are <strong>never stored in this browser app</strong>.
+            They are stored securely in your project's AES-256-GCM encrypted vault via the
+            <a href="http://localhost:3000/dashboard" target="_blank">OneAPI Dashboard &gt; API Providers</a> tab.
+            The OneAPI gateway handles failover, rate limiting, and decryption on the server.
+          </div>
+        </div>
+
+        <div class="config-footer">
+          <button id="saveConfigBtn" class="btn btn-primary">
+            Save &amp; Apply Credentials
+          </button>
+        </div>
       </div>
     </div>
-    <div class="header-status">
-      <div class="server-url-bar">
-        <span style="color: var(--text-muted); font-size: 11px;">BASE:</span>
-        <input type="text" id="baseUrlInput" value="http://localhost:5000">
-        <button class="btn btn-secondary" id="pingBtn" style="padding: 4px 8px; font-size: 11px; width: auto;">Ping</button>
+
+    <!-- Chat Stream Area -->
+    <main class="chat-main">
+      <div id="chatStream" class="chat-stream">
+        <!-- Rendered dynamically by app.js -->
       </div>
-      <div class="status-indicator" id="serverStatusBadge">
-        <div class="status-dot"></div>
-        <span id="serverStatusText">Checking...</span>
-      </div>
-    </div>
-  </header>
-
-  <!-- Main Grid Layout -->
-  <div class="app-container">
-    <!-- Sidebar Navigation -->
-    <aside class="sidebar">
-      <div class="nav-item active" data-tab="tab-overview">
-        <span class="icon">📊</span> Overview & Health
-      </div>
-      <div class="sidebar-divider"></div>
-      <div style="font-size: 11px; color: var(--text-muted); padding: 4px 14px; text-transform: uppercase; font-weight: 700;">Auth & Identity</div>
-      <div class="nav-item" data-tab="tab-signup">
-        <span class="icon">📝</span> User Signup
-      </div>
-      <div class="nav-item" data-tab="tab-verify">
-        <span class="icon">✅</span> Verify OTP / Email
-      </div>
-      <div class="nav-item" data-tab="tab-login">
-        <span class="icon">🔓</span> User Login
-      </div>
-      <div class="nav-item" data-tab="tab-recovery">
-        <span class="icon">🔄</span> Password Recovery
-      </div>
-      <div class="nav-item" data-tab="tab-profile">
-        <span class="icon">👤</span> Profile & Session
-      </div>
-
-      <div class="sidebar-divider"></div>
-      <div style="font-size: 11px; color: var(--text-muted); padding: 4px 14px; text-transform: uppercase; font-weight: 700;">Developer API Keys</div>
-      <div class="nav-item" data-tab="tab-apikeys">
-        <span class="icon">🔑</span> API Key CRUD
-      </div>
-      <div class="nav-item" data-tab="tab-aivalidate">
-        <span class="icon">🤖</span> AI Key Validation
-      </div>
-
-      <div class="sidebar-divider"></div>
-      <div style="font-size: 11px; color: var(--text-muted); padding: 4px 14px; text-transform: uppercase; font-weight: 700;">OneAPI Gateway</div>
-      <div class="nav-item" data-tab="tab-projects">
-        <span class="icon">📁</span> Projects & Vault
-      </div>
-      <div class="nav-item" data-tab="tab-proxy-ai">
-        <span class="icon">🧠</span> AI Proxy (Failover)
-      </div>
-      <div class="nav-item" data-tab="tab-proxy-music">
-        <span class="icon">🎵</span> Music Proxy
-      </div>
-      <div class="nav-item" data-tab="tab-proxy-weather">
-        <span class="icon">⛅</span> Weather Proxy
-      </div>
-      <div class="nav-item" data-tab="tab-proxy-news">
-        <span class="icon">📰</span> News Proxy
-      </div>
-      <div class="nav-item" data-tab="tab-proxy-env">
-        <span class="icon">🌿</span> Environment Proxy
-      </div>
-
-      <!-- Active Credentials State -->
-      <div class="state-badge-container">
-        <div class="state-label">Active User Token</div>
-        <div class="state-val" id="activeTokenDisplay">None (Log in to store)</div>
-        <div class="state-label" style="margin-top: 8px;">Active Project Token</div>
-        <div class="state-val" id="activeProjTokenDisplay">None (Create project)</div>
-      </div>
-    </aside>
-
-    <!-- Main Content Panels -->
-    <main class="main-content">
-      <!-- 1. Overview Tab -->
-      <section id="tab-overview" class="tab-pane active">
-        <div class="section-header">
-          <h2>System Overview & API Health</h2>
-          <p>Quick status check of your local backend, database connectivity, and registered providers.</p>
-        </div>
-        <div class="card-grid">
-          <div class="card">
-            <div class="card-title">
-              <span>Server Health Check</span>
-              <span class="method-badge method-get">GET</span>
-            </div>
-            <div class="card-subtitle">Endpoint: /health</div>
-            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
-              Checks server uptime, memory, and MongoDB connection state without credentials.
-            </p>
-            <button class="btn" id="checkHealthBtn">Check Health Now</button>
-          </div>
-
-          <div class="card">
-            <div class="card-title">
-              <span>Provider Discovery</span>
-              <span class="method-badge method-get">GET</span>
-            </div>
-            <div class="card-subtitle">Endpoint: /api/v1/proxy/providers</div>
-            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
-              Lists all 5 categories and the 10 registered demo providers with failover pairs.
-            </p>
-            <button class="btn btn-secondary" id="fetchProvidersBtn">List Registered Providers</button>
-          </div>
-
-          <div class="card">
-            <div class="card-title">
-              <span>Auth Routes Catalog</span>
-              <span class="method-badge method-get">GET</span>
-            </div>
-            <div class="card-subtitle">Endpoint: /api/v1/auth</div>
-            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
-              Returns interactive documentation and definitions of all authentication endpoints.
-            </p>
-            <button class="btn btn-secondary" id="fetchAuthCatalogBtn">Fetch Auth Catalog</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- 2. Signup Tab -->
-      <section id="tab-signup" class="tab-pane">
-        <div class="section-header">
-          <h2>User Registration</h2>
-          <p>Register a new account. Dispatches a 6-digit verification code to the registered email address (printed to server console in dev mode).</p>
-        </div>
-        <div class="card" style="max-width: 540px;">
-          <div class="card-title">
-            <span>Register Account</span>
-            <span class="method-badge method-post">POST /api/v1/auth/signup</span>
-          </div>
-          <div class="card-subtitle">Required fields: name, phone_no, email, password, terms_accepted</div>
-          <form id="signupForm">
-            <div class="form-group">
-              <label>Full Name</label>
-              <input type="text" id="signupName" value="Alex Rivera" required>
-            </div>
-            <div class="form-group">
-              <label>Phone Number</label>
-              <input type="text" id="signupPhone" value="+14155552671" required>
-            </div>
-            <div class="form-group">
-              <label>Email Address</label>
-              <input type="email" id="signupEmail" value="alex@example.com" required>
-            </div>
-            <div class="form-group">
-              <label>Password (min 8 characters)</label>
-              <input type="password" id="signupPassword" value="SecurePassword123!" required>
-            </div>
-            <div class="form-group">
-              <div class="checkbox-group">
-                <input type="checkbox" id="signupTerms" checked>
-                <label for="signupTerms">I accept the Terms and Conditions (terms_accepted: true)</label>
-              </div>
-            </div>
-            <button type="submit" class="btn">Register Account</button>
-          </form>
-        </div>
-      </section>
-
-      <!-- 3. Verify OTP Tab -->
-      <section id="tab-verify" class="tab-pane">
-        <div class="section-header">
-          <h2>Email Verification & OTP</h2>
-          <p>Verify your account using the 6-digit OTP code received in your email or printed in the backend terminal.</p>
-        </div>
-        <div class="card-grid">
-          <div class="card">
-            <div class="card-title">
-              <span>Verify Code</span>
-              <span class="method-badge method-post">POST /api/v1/auth/verify-otp</span>
-            </div>
-            <div class="card-subtitle">Activates account and returns access + refresh JWT tokens</div>
-            <form id="verifyOtpForm">
-              <div class="form-group">
-                <label>Email Address</label>
-                <input type="email" id="verifyEmail" value="alex@example.com" required>
-              </div>
-              <div class="form-group">
-                <label>6-Digit OTP Code</label>
-                <input type="text" id="verifyOtpCode" placeholder="Check server terminal / email" maxlength="6" required>
-              </div>
-              <button type="submit" class="btn">Verify & Activate Account</button>
-            </form>
-          </div>
-
-          <div class="card">
-            <div class="card-title">
-              <span>Resend Verification Code</span>
-              <span class="method-badge method-post">POST /api/v1/auth/resend-otp</span>
-            </div>
-            <div class="card-subtitle">Dispatches a new code with refreshed 10-minute validity</div>
-            <form id="resendOtpForm">
-              <div class="form-group">
-                <label>Email Address</label>
-                <input type="email" id="resendEmail" value="alex@example.com" required>
-              </div>
-              <button type="submit" class="btn btn-secondary">Resend Verification Code</button>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      <!-- 4. Login Tab -->
-      <section id="tab-login" class="tab-pane">
-        <div class="section-header">
-          <h2>User Login</h2>
-          <p>Authenticate with your email and password. Automatically saves JWT tokens and dispatches a "Try to login" email alert.</p>
-        </div>
-        <div class="card" style="max-width: 540px;">
-          <div class="card-title">
-            <span>Log In</span>
-            <span class="method-badge method-post">POST /api/v1/auth/login</span>
-          </div>
-          <div class="card-subtitle">Issues JWT tokens and saves to active session for subsequent requests</div>
-          <form id="loginForm">
-            <div class="form-group">
-              <label>Email Address</label>
-              <input type="email" id="loginEmail" value="alex@example.com" required>
-            </div>
-            <div class="form-group">
-              <label>Password</label>
-              <input type="password" id="loginPassword" value="SecurePassword123!" required>
-            </div>
-            <button type="submit" class="btn">Log In</button>
-          </form>
-        </div>
-      </section>
-
-      <!-- 5. Password Recovery Tab -->
-      <section id="tab-recovery" class="tab-pane">
-        <div class="section-header">
-          <h2>Password Recovery</h2>
-          <p>Request a password reset code and set a new password safely.</p>
-        </div>
-        <div class="card-grid">
-          <div class="card">
-            <div class="card-title">
-              <span>Forgot Password</span>
-              <span class="method-badge method-post">POST /api/v1/auth/forgot-password</span>
-            </div>
-            <div class="card-subtitle">Generates a 15-minute recovery code</div>
-            <form id="forgotPassForm">
-              <div class="form-group">
-                <label>Registered Email</label>
-                <input type="email" id="forgotEmail" value="alex@example.com" required>
-              </div>
-              <button type="submit" class="btn">Send Password Reset Code</button>
-            </form>
-          </div>
-
-          <div class="card">
-            <div class="card-title">
-              <span>Reset Password</span>
-              <span class="method-badge method-post">POST /api/v1/auth/reset-password</span>
-            </div>
-            <div class="card-subtitle">Set new password with code</div>
-            <form id="resetPassForm">
-              <div class="form-group">
-                <label>Email Address</label>
-                <input type="email" id="resetEmail" value="alex@example.com" required>
-              </div>
-              <div class="form-group">
-                <label>Reset Code</label>
-                <input type="text" id="resetOtpCode" placeholder="Enter 6-digit code" maxlength="6" required>
-              </div>
-              <div class="form-group">
-                <label>New Password</label>
-                <input type="password" id="resetNewPass" value="NewStrongPassword456!" required>
-              </div>
-              <button type="submit" class="btn">Confirm New Password</button>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      <!-- 6. Profile & Session Tab -->
-      <section id="tab-profile" class="tab-pane">
-        <div class="section-header">
-          <h2>Profile & Session Management</h2>
-          <p>Inspect the authenticated profile using the stored Bearer token, refresh expired tokens, or log out.</p>
-        </div>
-        <div class="card-grid">
-          <div class="card">
-            <div class="card-title">
-              <span>Current User Profile</span>
-              <span class="method-badge method-get">GET /api/v1/auth/me</span>
-            </div>
-            <div class="card-subtitle">Requires active Authorization: Bearer &lt;token&gt;</div>
-            <button class="btn" id="getMeBtn">Fetch Profile (/auth/me)</button>
-          </div>
-
-          <div class="card">
-            <div class="card-title">
-              <span>Refresh Access Token</span>
-              <span class="method-badge method-post">POST /api/v1/auth/refresh-token</span>
-            </div>
-            <div class="card-subtitle">Obtains new access token using saved refresh token</div>
-            <button class="btn btn-secondary" id="refreshTokenBtn">Refresh Token</button>
-          </div>
-
-          <div class="card">
-            <div class="card-title">
-              <span>Log Out</span>
-              <span class="method-badge method-post">POST /api/v1/auth/logout</span>
-            </div>
-            <div class="card-subtitle">Clears active session tokens from tester state</div>
-            <button class="btn btn-danger" id="logoutBtn">Log Out & Clear Session</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- 7. API Keys Tab -->
-      <section id="tab-apikeys" class="tab-pane">
-        <div class="section-header">
-          <h2>Developer API Key Management</h2>
-          <p>Full CRUD operations for managing developer API keys with automated email notifications.</p>
-        </div>
-        <div class="card-grid">
-          <div class="card">
-            <div class="card-title">
-              <span>Create API Key</span>
-              <span class="method-badge method-post">POST /api/v1/auth/create-api-key</span>
-            </div>
-            <div class="card-subtitle">Generates sk_live_... key (shown only once)</div>
-            <form id="createApiKeyForm">
-              <div class="form-group">
-                <label>Key Name</label>
-                <input type="text" id="apiKeyName" value="Production Payment Webhook" required>
-              </div>
-              <div class="form-group">
-                <label>Expiration (Days, optional)</label>
-                <input type="number" id="apiKeyDays" placeholder="e.g. 90">
-              </div>
-              <button type="submit" class="btn">Generate New API Key</button>
-            </form>
-          </div>
-
-          <div class="card">
-            <div class="card-title">
-              <span>List API Keys</span>
-              <span class="method-badge method-get">GET /api/v1/auth/api-keys</span>
-            </div>
-            <div class="card-subtitle">Fetch all active keys for current user</div>
-            <button class="btn btn-secondary" id="listApiKeysBtn">Fetch User API Keys</button>
-          </div>
-
-          <div class="card">
-            <div class="card-title">
-              <span>Update / Revoke Key</span>
-              <span class="method-badge method-patch">PATCH & DELETE</span>
-            </div>
-            <div class="card-subtitle">Manage existing key by ID</div>
-            <form id="manageKeyForm">
-              <div class="form-group">
-                <label>API Key ID (_id)</label>
-                <input type="text" id="manageKeyId" placeholder="Paste Key _id from list" required>
-              </div>
-              <div class="form-group">
-                <label>Rename Key (optional)</label>
-                <input type="text" id="manageKeyNewName" placeholder="Updated Key Name">
-              </div>
-              <div style="display: flex; gap: 8px;">
-                <button type="button" class="btn btn-secondary" id="updateKeyBtn" style="flex: 1;">Update Key</button>
-                <button type="button" class="btn btn-danger" id="revokeKeyBtn" style="flex: 1;">Revoke Key</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      <!-- 8. AI Key Validation Tab -->
-      <section id="tab-aivalidate" class="tab-pane">
-        <div class="section-header">
-          <h2>AI API Key Validation</h2>
-          <p>Direct validation endpoint used by AI agents and microservices to verify an API key against `userId` and `email`.</p>
-        </div>
-        <div class="card" style="max-width: 560px;">
-          <div class="card-title">
-            <span>Validate API Key</span>
-            <span class="method-badge method-post">POST /api/v1/auth/api-keys/validate</span>
-          </div>
-          <div class="card-subtitle">Validates keyHash, active status, expiration, and user ownership</div>
-          <form id="validateApiKeyForm">
-            <div class="form-group">
-              <label>Raw API Key (sk_live_...)</label>
-              <input type="text" id="aiValidateKey" placeholder="Paste generated API key" required>
-            </div>
-            <div class="form-group">
-              <label>User ID (user_id or _id)</label>
-              <input type="text" id="aiValidateUserId" placeholder="usr_..." required>
-            </div>
-            <div class="form-group">
-              <label>User Email</label>
-              <input type="email" id="aiValidateEmail" value="alex@example.com" required>
-            </div>
-            <button type="submit" class="btn">Validate Key with AI Engine</button>
-          </form>
-        </div>
-      </section>
-
-      <!-- 9. Projects & Vault Tab -->
-      <section id="tab-projects" class="tab-pane">
-        <div class="section-header">
-          <h2>OneAPI Projects & Encrypted Key Vault</h2>
-          <p>Create developer projects, obtain project tokens (`oneapi_dev_token_xxx`), store third-party provider keys in the AES-256-GCM vault, and configure routing.</p>
-        </div>
-        <div class="card-grid">
-          <div class="card">
-            <div class="card-title">
-              <span>Create Project</span>
-              <span class="method-badge method-post">POST /api/v1/projects</span>
-            </div>
-            <div class="card-subtitle">Generates project token for OneAPI Gateway proxying</div>
-            <form id="createProjectForm">
-              <div class="form-group">
-                <label>Project Name</label>
-                <input type="text" id="projectName" value="My Production App" required>
-              </div>
-              <button type="submit" class="btn">Create Project & Token</button>
-            </form>
-          </div>
-
-          <div class="card">
-            <div class="card-title">
-              <span>Store Key in Encrypted Vault</span>
-              <span class="method-badge method-post">POST /api/v1/projects/:id/vault</span>
-            </div>
-            <div class="card-subtitle">Encrypted at rest using AES-256-GCM</div>
-            <form id="storeVaultSecretForm">
-              <div class="form-group">
-                <label>Project ID</label>
-                <input type="text" id="vaultProjectId" placeholder="proj_... or project _id" required>
-              </div>
-              <div class="form-group">
-                <label>Category</label>
-                <select id="vaultCategory">
-                  <option value="ai">AI</option>
-                  <option value="weather">Weather</option>
-                  <option value="music">Music</option>
-                  <option value="news">News</option>
-                  <option value="environment">Environment</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Provider ID</label>
-                <input type="text" id="vaultProviderId" value="gemini" required>
-              </div>
-              <div class="form-group">
-                <label>API Key / Secret</label>
-                <input type="text" id="vaultApiKey" placeholder="Paste third-party API key" required>
-              </div>
-              <button type="submit" class="btn btn-secondary">Encrypt & Save to Vault</button>
-            </form>
-          </div>
-
-          <div class="card">
-            <div class="card-title">
-              <span>Category Routing Configuration</span>
-              <span class="method-badge method-patch">PUT /api/v1/projects/:id/routing</span>
-            </div>
-            <div class="card-subtitle">Set Primary and Fallback provider pairs</div>
-            <form id="routingConfigForm">
-              <div class="form-group">
-                <label>Project ID</label>
-                <input type="text" id="routingProjectId" placeholder="proj_..." required>
-              </div>
-              <div class="form-group">
-                <label>Category</label>
-                <select id="routingCategory">
-                  <option value="ai">AI</option>
-                  <option value="weather">Weather</option>
-                  <option value="music">Music</option>
-                  <option value="news">News</option>
-                  <option value="environment">Environment</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Primary Provider ID</label>
-                <input type="text" id="routingPrimary" value="gemini" required>
-              </div>
-              <div class="form-group">
-                <label>Fallback Provider ID</label>
-                <input type="text" id="routingFallback" value="groq" required>
-              </div>
-              <button type="submit" class="btn btn-secondary">Update Routing Rule</button>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      <!-- 10. AI Proxy Tab -->
-      <section id="tab-proxy-ai" class="tab-pane">
-        <div class="section-header">
-          <h2>OneAPI AI Proxy with Failover</h2>
-          <p>Interacts with Google Gemini (Primary). If Gemini fails (e.g. rate limit 429 or timeout), it automatically fails over to Groq / Pollinations AI in the same request!</p>
-        </div>
-        <div class="card" style="max-width: 600px;">
-          <div class="card-title">
-            <span>AI Chat Completion</span>
-            <span class="method-badge method-post">POST /api/v1/proxy/ai/chat</span>
-          </div>
-          <div class="card-subtitle">Requires OneAPI Project Token (Authorization: Bearer oneapi_dev_...)</div>
-          <form id="proxyAiForm">
-            <div class="form-group">
-              <label>Model</label>
-              <input type="text" id="aiModel" value="default" placeholder="default (maps to active provider)">
-            </div>
-            <div class="form-group">
-              <label>User Prompt</label>
-              <textarea id="aiPrompt" rows="3" required>Explain quantum computing in two concise sentences.</textarea>
-            </div>
-            <button type="submit" class="btn">Send AI Chat Request</button>
-          </form>
-        </div>
-      </section>
-
-      <!-- 11. Music Proxy Tab -->
-      <section id="tab-proxy-music" class="tab-pane">
-        <div class="section-header">
-          <h2>OneAPI Music Proxy (Deezer ➔ iTunes Failover)</h2>
-          <p>Search music tracks across Deezer API (Primary) with transparent Apple iTunes Search API (Fallback) from public-apis.</p>
-        </div>
-        <div class="card" style="max-width: 600px;">
-          <div class="card-title">
-            <span>Search Music</span>
-            <span class="method-badge method-get">GET /api/v1/proxy/music/search</span>
-          </div>
-          <div class="card-subtitle">Unified track format with 30s playable audio previews</div>
-          <form id="proxyMusicForm">
-            <div class="form-group">
-              <label>Search Query (Track / Artist / Genre)</label>
-              <input type="text" id="musicQuery" value="electronic" required>
-            </div>
-            <div class="form-group">
-              <label>Limit</label>
-              <input type="number" id="musicLimit" value="5" min="1" max="25">
-            </div>
-            <button type="submit" class="btn">Search Music</button>
-          </form>
-          <div id="musicResultsContainer" style="margin-top: 16px;"></div>
-        </div>
-      </section>
-
-      <!-- 12. Weather Proxy Tab -->
-      <section id="tab-proxy-weather" class="tab-pane">
-        <div class="section-header">
-          <h2>OneAPI Weather Proxy (Open-Meteo ➔ Weatherstack Failover)</h2>
-          <p>Real-time weather data with automatic failover between Open-Meteo (Primary) and Weatherstack / wttr.in (Fallback).</p>
-        </div>
-        <div class="card" style="max-width: 600px;">
-          <div class="card-title">
-            <span>Current Weather</span>
-            <span class="method-badge method-get">GET /api/v1/proxy/weather/current</span>
-          </div>
-          <div class="card-subtitle">Normalized temperature, humidity, condition, and wind speed</div>
-          <form id="proxyWeatherForm">
-            <div class="form-group">
-              <label>City Name</label>
-              <input type="text" id="weatherCity" value="San Francisco" required>
-            </div>
-            <button type="submit" class="btn">Get Weather Forecast</button>
-          </form>
-        </div>
-      </section>
-
-      <!-- 13. News Proxy Tab -->
-      <section id="tab-proxy-news" class="tab-pane">
-        <div class="section-header">
-          <h2>OneAPI News Proxy (HackerNews ➔ Spaceflight Failover)</h2>
-          <p>Real-time news search unifying HackerNews Algolia (Primary) and Spaceflight News API (Fallback).</p>
-        </div>
-        <div class="card" style="max-width: 600px;">
-          <div class="card-title">
-            <span>Search News</span>
-            <span class="method-badge method-get">GET /api/v1/proxy/news/search</span>
-          </div>
-          <div class="card-subtitle">Normalized articles, titles, sources, and publication dates</div>
-          <form id="proxyNewsForm">
-            <div class="form-group">
-              <label>Search Topic</label>
-              <input type="text" id="newsQuery" value="artificial intelligence" required>
-            </div>
-            <div class="form-group">
-              <label>Limit</label>
-              <input type="number" id="newsLimit" value="5" min="1" max="20">
-            </div>
-            <button type="submit" class="btn">Search News</button>
-          </form>
-        </div>
-      </section>
-
-      <!-- 14. Environment Proxy Tab -->
-      <section id="tab-proxy-env" class="tab-pane">
-        <div class="section-header">
-          <h2>OneAPI Environment Proxy (OpenAQ ➔ Open-Meteo Air Failover)</h2>
-          <p>Global air quality, PM2.5, PM10, and AQI indices with OpenAQ (Primary) and Open-Meteo Atmospheric Air (Fallback).</p>
-        </div>
-        <div class="card" style="max-width: 600px;">
-          <div class="card-title">
-            <span>Air Quality Indices</span>
-            <span class="method-badge method-get">GET /api/v1/proxy/environment/air-quality</span>
-          </div>
-          <div class="card-subtitle">Normalized AQI status, PM2.5, and PM10 metrics</div>
-          <form id="proxyEnvForm">
-            <div class="form-group">
-              <label>City Name</label>
-              <input type="text" id="envCity" value="Delhi" required>
-            </div>
-            <button type="submit" class="btn">Fetch Air Quality Data</button>
-          </form>
-        </div>
-      </section>
     </main>
 
-    <!-- Right Column: Live Response & Network Inspector -->
-    <aside class="inspector-panel">
-      <div class="inspector-header">
-        <h3><span>📡</span> Live Network Inspector</h3>
-        <button class="btn btn-secondary" id="clearInspectorBtn" style="padding: 2px 8px; font-size: 11px; width: auto;">Clear</button>
-      </div>
-
-      <div class="inspector-stats">
-        <div class="stat-item">
-          <span class="stat-label">STATUS:</span>
-          <span class="stat-val" id="respStatus">---</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">TIME:</span>
-          <span class="stat-val" id="respTime">0 ms</span>
-        </div>
-      </div>
-
-      <div class="inspector-stats" style="border-top: none; background: #0b111e;">
-        <div class="stat-item">
-          <span class="stat-label">PROVIDER:</span>
-          <span class="stat-val" id="respProvider" style="color: var(--accent-blue);">---</span>
-        </div>
-        <div id="respFallbackBadge" class="fallback-pill" style="display: none;">
-          FAILOVER TRIGGERED
+    <!-- Chat Input Area -->
+    <footer class="chat-footer">
+      <div class="chat-input-container">
+        <form id="chatForm" class="chat-form">
+          <textarea
+            id="userInput"
+            rows="1"
+            placeholder="Ask anything... (e.g. 'Explain how OneAPI failover protects my app')"
+            required
+          ></textarea>
+          <button type="submit" id="sendBtn" class="btn-send" title="Send message (Enter)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </form>
+        <div class="input-helper">
+          <span>Press <strong>Enter</strong> to send &bull; <strong>Shift + Enter</strong> for new line</span>
+          <span class="proxy-tag">Unified Gateway Proxy: <code>/api/v1/proxy/ai/chat</code></span>
         </div>
       </div>
-
-      <div class="response-viewer">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">RESPONSE JSON</span>
-          <button class="btn btn-secondary" id="copyJsonBtn" style="padding: 2px 8px; font-size: 10px; width: auto;">Copy JSON</button>
-        </div>
-        <pre id="jsonOutput">// Click any button on the left to execute a request...</pre>
-      </div>
-    </aside>
+    </footer>
   </div>
 
   <script src="app.js"></script>

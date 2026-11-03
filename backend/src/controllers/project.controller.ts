@@ -1,4 +1,5 @@
 import type { Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import crypto from 'crypto';
 import { Project } from '../models/Project.js';
 import { VaultSecret, type ProviderCategory } from '../models/VaultSecret.js';
@@ -8,6 +9,15 @@ import { hashToken } from '../utils/crypto.js';
 import { encryptSecret, maskApiKey } from '../utils/vaultCrypto.js';
 import { providerRegistry } from '../providers/registry.js';
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
+
+function getProjectQuery(projectId: string | string[], ownerId: any) {
+  const idStr = Array.isArray(projectId) ? projectId[0] : projectId;
+  const isMongoId = typeof idStr === 'string' && mongoose.Types.ObjectId.isValid(idStr);
+  return {
+    $or: isMongoId ? [{ projectId: idStr }, { _id: idStr }] : [{ projectId: idStr }],
+    ownerId,
+  };
+}
 
 /**
  * 1. Create a New OneAPI Project
@@ -94,10 +104,7 @@ export async function getProjectById(req: AuthenticatedRequest, res: Response, n
     const { projectId } = req.params;
     const user = req.user!;
 
-    const project = await Project.findOne({
-      $or: [{ projectId }, { _id: projectId.length === 24 ? projectId : undefined }],
-      ownerId: user._id,
-    });
+    const project = await Project.findOne(getProjectQuery(projectId, user._id));
 
     if (!project) {
       res.status(404).json({
@@ -133,10 +140,7 @@ export async function saveVaultSecret(req: AuthenticatedRequest, res: Response, 
     const { category, providerId, apiKey, metadata } = req.body;
     const user = req.user!;
 
-    const project = await Project.findOne({
-      $or: [{ projectId }, { _id: projectId.length === 24 ? projectId : undefined }],
-      ownerId: user._id,
-    });
+    const project = await Project.findOne(getProjectQuery(projectId, user._id));
 
     if (!project) {
       res.status(404).json({
@@ -157,7 +161,7 @@ export async function saveVaultSecret(req: AuthenticatedRequest, res: Response, 
         keyPreview,
         metadata: metadata || {},
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 
     res.status(200).json({
@@ -184,10 +188,7 @@ export async function listVaultSecrets(req: AuthenticatedRequest, res: Response,
     const { projectId } = req.params;
     const user = req.user!;
 
-    const project = await Project.findOne({
-      $or: [{ projectId }, { _id: projectId.length === 24 ? projectId : undefined }],
-      ownerId: user._id,
-    });
+    const project = await Project.findOne(getProjectQuery(projectId, user._id));
 
     if (!project) {
       res.status(404).json({
@@ -219,10 +220,7 @@ export async function deleteVaultSecret(req: AuthenticatedRequest, res: Response
     const { projectId, secretId } = req.params;
     const user = req.user!;
 
-    const project = await Project.findOne({
-      $or: [{ projectId }, { _id: projectId.length === 24 ? projectId : undefined }],
-      ownerId: user._id,
-    });
+    const project = await Project.findOne(getProjectQuery(projectId, user._id));
 
     if (!project) {
       res.status(404).json({
@@ -232,7 +230,16 @@ export async function deleteVaultSecret(req: AuthenticatedRequest, res: Response
       return;
     }
 
-    await VaultSecret.findOneAndDelete({ _id: secretId, projectId: project._id });
+    const secretIdStr = Array.isArray(secretId) ? secretId[0] : secretId;
+    if (!secretIdStr || !mongoose.Types.ObjectId.isValid(secretIdStr)) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_SECRET_ID', message: 'Invalid secret identifier.' },
+      });
+      return;
+    }
+
+    await VaultSecret.findOneAndDelete({ _id: secretIdStr, projectId: project._id });
 
     res.status(200).json({
       success: true,
@@ -253,10 +260,7 @@ export async function updateRoutingRule(req: AuthenticatedRequest, res: Response
     const { category, primaryProviderId, fallbackProviderId, timeoutMs } = req.body;
     const user = req.user!;
 
-    const project = await Project.findOne({
-      $or: [{ projectId }, { _id: projectId.length === 24 ? projectId : undefined }],
-      ownerId: user._id,
-    });
+    const project = await Project.findOne(getProjectQuery(projectId, user._id));
 
     if (!project) {
       res.status(404).json({
@@ -273,7 +277,7 @@ export async function updateRoutingRule(req: AuthenticatedRequest, res: Response
         fallbackProviderId,
         ...(timeoutMs && { timeoutMs }),
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 
     res.status(200).json({
@@ -297,10 +301,7 @@ export async function getProjectAnalytics(req: AuthenticatedRequest, res: Respon
     const { projectId } = req.params;
     const user = req.user!;
 
-    const project = await Project.findOne({
-      $or: [{ projectId }, { _id: projectId.length === 24 ? projectId : undefined }],
-      ownerId: user._id,
-    });
+    const project = await Project.findOne(getProjectQuery(projectId, user._id));
 
     if (!project) {
       res.status(404).json({

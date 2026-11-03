@@ -22,11 +22,11 @@ export function getTryToLoginTemplate({
   timestamp = new Date().toUTCString(),
   location = 'Unknown Location',
 }: TryToLoginTemplateParams): EmailContent {
-  const subject = `Security Alert: New Sign-In to Your HackVsak Account`;
+  const subject = `Security Alert: New Sign-In to Your OneAPI Account`;
 
   const bodyContent = `
     <div class="greeting">Hello ${name || 'User'},</div>
-    <p>A new sign-in attempt was detected for your HackVsak account (<strong>${email}</strong>).</p>
+    <p>A new sign-in attempt was detected for your OneAPI account (<strong>${email}</strong>).</p>
 
     <table class="info-table">
       <tr>
@@ -63,12 +63,12 @@ export function getTryToLoginTemplate({
     title: 'New Sign-In Detected',
     previewText: `New sign-in detected from IP ${ipAddress || 'unknown'} at ${timestamp}.`,
     bodyContent,
-    footerText: 'HackVsak Automated Security Monitor',
+    footerText: 'OneAPI Automated Security Monitor',
   });
 
   const text = `Hello ${name || 'User'},
 
-A new sign-in was detected for your HackVsak account (${email}).
+A new sign-in was detected for your OneAPI account (${email}).
 
 Sign-In Details:
 - Time: ${timestamp}

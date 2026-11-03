@@ -21,7 +21,7 @@ export const env = {
   // Vault AES-256-GCM Master Encryption Key
   VAULT_MASTER_KEY: process.env.VAULT_MASTER_KEY || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
   EMAIL: {
-    FROM: process.env.EMAIL_FROM || 'HackVsak Security <no-reply@hackvsak.com>',
+    FROM: process.env.EMAIL_FROM || 'OneAPI Security <no-reply@oneapi.dev>',
     SMTP_HOST: process.env.SMTP_HOST || '',
     SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
     SMTP_USER: process.env.SMTP_USER || '',
