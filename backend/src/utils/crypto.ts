@@ -1,16 +1,26 @@
 import crypto from 'crypto';
 
 /**
- * Generates a cryptographically secure numeric OTP string (default: 6 digits).
+ * Generates a cryptographically secure numeric OTP string (default: 6 digits) with zero modulo bias.
  */
 export function generateNumericOtp(length: number = 6): string {
   const digits = '0123456789';
   let otp = '';
-  const randomBytes = crypto.randomBytes(length);
   for (let i = 0; i < length; i++) {
-    otp += digits[randomBytes[i] % 10];
+    otp += digits[crypto.randomInt(0, 10)];
   }
   return otp;
+}
+
+/**
+ * Constant-time string comparison to prevent timing attacks on sensitive token hashes.
+ */
+export function safeCompare(a?: string, b?: string): boolean {
+  if (!a || !b) return false;
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
 }
 
 /**

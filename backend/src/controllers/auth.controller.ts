@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import { User } from '../models/User.js';
 import { AuditLog } from '../models/AuditLog.js';
-import { generateNumericOtp, hashToken, generateApiKey } from '../utils/crypto.js';
+import { generateNumericOtp, hashToken, generateApiKey, safeCompare } from '../utils/crypto.js';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/tokens.js';
 import { mailService } from '../services/mail.service.js';
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
@@ -154,7 +155,7 @@ export async function verifyOtp(req: Request, res: Response, next: NextFunction)
 
     if (
       !user.verificationOtp ||
-      user.verificationOtp !== hashedInputOtp ||
+      !safeCompare(user.verificationOtp, hashedInputOtp) ||
       !user.verificationOtpExpires ||
       user.verificationOtpExpires < new Date()
     ) {
@@ -213,7 +214,7 @@ export async function verifyOtp(req: Request, res: Response, next: NextFunction)
 
     res.status(200).json({
       success: true,
-      message: 'Email successfully verified! Welcome to HackVsak.',
+      message: 'Email successfully verified! Welcome to OneAPI.',
       data: {
         user,
         tokens: {
@@ -470,7 +471,7 @@ export async function resetPassword(req: Request, res: Response, next: NextFunct
 
     if (
       !user.resetPasswordOtp ||
-      user.resetPasswordOtp !== hashedInputOtp ||
+      !safeCompare(user.resetPasswordOtp, hashedInputOtp) ||
       !user.resetPasswordExpires ||
       user.resetPasswordExpires < new Date()
     ) {
@@ -860,10 +861,12 @@ export async function validateApiKeyHandler(req: Request, res: Response, next: N
     const userAgent = getClientUserAgent(req);
 
     const query: Record<string, any> = { email: email.toLowerCase() };
-    if (targetUserId.startsWith('usr_')) {
+    if (typeof targetUserId === 'string' && targetUserId.startsWith('usr_')) {
       query.user_id = targetUserId;
-    } else {
+    } else if (typeof targetUserId === 'string' && mongoose.Types.ObjectId.isValid(targetUserId)) {
       query.$or = [{ user_id: targetUserId }, { _id: targetUserId }];
+    } else if (typeof targetUserId === 'string') {
+      query.user_id = targetUserId;
     }
 
     const user = await User.findOne(query).select('+apiKeys.keyHash');
@@ -880,7 +883,7 @@ export async function validateApiKeyHandler(req: Request, res: Response, next: N
     }
 
     const hashedInput = hashToken(apiKey);
-    const key = user.apiKeys.find((k) => k.keyHash === hashedInput);
+    const key = user.apiKeys.find((k) => safeCompare(k.keyHash, hashedInput));
 
     if (!key) {
       res.status(401).json({
@@ -951,3 +954,73 @@ export async function validateApiKeyHandler(req: Request, res: Response, next: N
     next(err);
   }
 }
+
+/**
+ * 14. Change Password for Authenticated User
+ * POST /api/v1/auth/change-password
+ */
+export async function changePassword(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user!._id;
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Current password and new password are required.' },
+      });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'New password must be at least 8 characters long.' },
+      });
+      return;
+    }
+
+    const user = await User.findById(userId).select('+password');
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        error: { code: 'USER_NOT_FOUND', message: 'User not found.' },
+      });
+      return;
+    }
+
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_CREDENTIALS', message: 'Current password is incorrect.' },
+      });
+      return;
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    await AuditLog.create({
+      action: 'PASSWORD_RESET_SUCCESS',
+      userId: user._id,
+      userEmail: user.email,
+      ipAddress: req.ip || '',
+      userAgent: (req.headers['user-agent'] as string) || '',
+      status: 'SUCCESS',
+      details: { reason: 'User initiated password change in Settings' },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Password successfully updated.',
+    });
+  } catch (err: any) {
+    next(err);
+  }
+}
+

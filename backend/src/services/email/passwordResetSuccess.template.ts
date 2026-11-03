@@ -15,11 +15,11 @@ export function getPasswordResetSuccessTemplate({
   email,
   timestamp = new Date().toUTCString(),
 }: PasswordResetSuccessParams): EmailContent {
-  const subject = `Security Notice: Your HackVsak Password Has Been Changed`;
+  const subject = `Security Notice: Your OneAPI Password Has Been Changed`;
 
   const bodyContent = `
     <div class="greeting">Hello ${name || 'User'},</div>
-    <p>This is confirmation that the password for your HackVsak account (<strong>${email}</strong>) was successfully updated on <strong>${timestamp}</strong>.</p>
+    <p>This is confirmation that the password for your OneAPI account (<strong>${email}</strong>) was successfully updated on <strong>${timestamp}</strong>.</p>
     
     <div class="alert-box">
       <strong>Didn't make this change?</strong><br>
@@ -31,13 +31,13 @@ export function getPasswordResetSuccessTemplate({
 
   const html = renderBaseEmailLayout({
     title: 'Password Changed Successfully',
-    previewText: `Your HackVsak password was changed on ${timestamp}.`,
+    previewText: `Your OneAPI password was changed on ${timestamp}.`,
     bodyContent,
   });
 
   const text = `Hello ${name || 'User'},
 
-Your HackVsak password for ${email} was successfully changed on ${timestamp}.
+Your OneAPI password for ${email} was successfully changed on ${timestamp}.
 
 If you did not initiate this change, please contact support immediately.
 `;

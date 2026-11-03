@@ -1,4 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
+import { env } from '../config/env.js';
 import {
   signup,
   verifyOtp,
@@ -15,6 +16,7 @@ import {
   updateApiKey,
   revokeApiKey,
   validateApiKeyHandler,
+  changePassword,
 } from '../controllers/auth.controller.js';
 import { validateBody } from '../middleware/validate.js';
 import { authenticate } from '../middleware/auth.middleware.js';
@@ -45,19 +47,20 @@ function handleGetOrDoc(options: {
   executeWithQuery?: (req: Request, res: Response, next: NextFunction) => void;
 }) {
   return (req: Request, res: Response, next: NextFunction) => {
-    // If the caller provided the required query parameters, execute directly
-    if (options.hasRequiredQuery && options.hasRequiredQuery(req) && options.executeWithQuery) {
+    // In production, prohibit executing sensitive actions with credentials via GET query parameters (prevents URL/log leakage & CSRF)
+    const isProduction = env.NODE_ENV === 'production';
+    if (!isProduction && options.hasRequiredQuery && options.hasRequiredQuery(req) && options.executeWithQuery) {
       return options.executeWithQuery(req, res, next);
     }
 
-    // Otherwise return a clear, developer-friendly 200 OK status guide
+    // Return a clear, developer-friendly 200 OK status guide
     res.status(200).json({
       success: true,
       endpoint: options.endpoint,
       method: options.method,
       status: 'active',
       description: options.description,
-      note: `This endpoint expects an HTTP ${options.method} request with JSON body. You can also pass query parameters in GET for browser testing.`,
+      note: `This endpoint expects an HTTP ${options.method} request with JSON body.`,
       exampleBody: options.example,
     });
   };
@@ -71,7 +74,7 @@ function handleGetOrDoc(options: {
  */
 router.get('/', (_req: Request, res: Response) => {
   res.status(200).json({
-    name: 'HackVsak / OneAPI Authentication Service',
+    name: 'OneAPI Authentication Service',
     status: 'operational',
     basePath: '/api/v1/auth',
     routes: [
@@ -303,6 +306,7 @@ router.get(
  * ---------------------------------------------------------------------------
  */
 router.get('/me', authenticate, getMe);
+router.post('/change-password', authenticate, changePassword);
 router.post('/logout', authenticate, logout);
 router.get('/logout', authenticate, logout);
 

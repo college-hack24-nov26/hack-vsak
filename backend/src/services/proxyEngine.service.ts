@@ -46,7 +46,7 @@ export class ProxyEngineService {
     const primaryId = rule?.primaryProviderId || defaults.primary;
     const fallbackId = rule?.fallbackProviderId || defaults.fallback;
     const timeoutMs = rule?.timeoutMs || 5000;
-    const retryStatuses = rule?.retryOnStatusCodes || [429, 500, 502, 503, 504];
+    const retryStatuses = rule?.retryOnStatusCodes || [400, 401, 402, 403, 404, 410, 429, 500, 502, 503, 504];
 
     // 2. Fetch primary provider adapter
     const primaryAdapter = providerRegistry.get(category, primaryId);
@@ -88,7 +88,7 @@ export class ProxyEngineService {
       };
     } catch (primaryError: any) {
       const primaryStatus = primaryError.statusCode || 500;
-      const shouldRetry = retryStatuses.includes(primaryStatus) || primaryError.name === 'AbortError' || primaryError.message?.includes('timeout');
+      const shouldRetry = retryStatuses.includes(primaryStatus) || primaryStatus >= 400 || primaryError.name === 'AbortError' || primaryError.message?.includes('timeout');
 
       console.warn(`[ProxyEngine] Primary provider "${primaryId}" failed (${primaryError.message}). Should failover: ${shouldRetry}`);
 

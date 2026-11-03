@@ -120,7 +120,7 @@ describe('3. Email Service Templates', () => {
       name: 'Alex Rivera',
       email: 'alex@example.com',
     });
-    assert.ok(template.subject.includes('Your HackVsak Password Has Been Changed'));
+    assert.ok(template.subject.includes('Your OneAPI Password Has Been Changed'));
     assert.ok(template.html.includes('Alex Rivera'));
   });
 
@@ -129,7 +129,7 @@ describe('3. Email Service Templates', () => {
       name: 'Alex Rivera',
       email: 'alex@example.com',
     });
-    assert.ok(template.subject.includes('Welcome to HackVsak'));
+    assert.ok(template.subject.includes('Welcome to OneAPI'));
     assert.ok(template.html.includes('Alex Rivera'));
   });
 });

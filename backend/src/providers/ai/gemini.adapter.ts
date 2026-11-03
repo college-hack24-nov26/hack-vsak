@@ -10,7 +10,9 @@ export class GeminiAiAdapter implements IProviderAdapter<UnifiedAiRequest, Unifi
     const apiKey = config.apiKey || process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-      throw new Error('Gemini API key is required. Please add it to your project vault.');
+      const err = new Error('Gemini API key is required. Please add it to your project vault.');
+      (err as any).statusCode = 503;
+      throw err;
     }
 
     const model = params.model && params.model !== 'default' ? params.model : 'gemini-1.5-flash';

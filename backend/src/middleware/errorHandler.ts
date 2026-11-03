@@ -58,6 +58,11 @@ export function errorHandler(
     message = 'Authentication token has expired. Please log in again.';
   }
 
+  // Prevent internal error details leaking in production
+  if (statusCode === 500 && env.NODE_ENV === 'production') {
+    message = 'An unexpected internal server error occurred.';
+  }
+
   res.status(statusCode).json({
     success: false,
     error: {

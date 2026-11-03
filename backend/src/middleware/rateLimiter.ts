@@ -2,7 +2,8 @@ import rateLimit from 'express-rate-limit';
 
 export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 1000, // Generous limit so developer dashboard polling is never blocked
+  skip: (req) => req.method === 'OPTIONS', // Never rate-limit preflight CORS requests
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -16,7 +17,8 @@ export const generalLimiter = rateLimit({
 
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15,
+  max: 100,
+  skip: (req) => req.method === 'OPTIONS',
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -30,7 +32,8 @@ export const authLimiter = rateLimit({
 
 export const sensitiveLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 6,
+  max: 30,
+  skip: (req) => req.method === 'OPTIONS',
   standardHeaders: true,
   legacyHeaders: false,
   message: {

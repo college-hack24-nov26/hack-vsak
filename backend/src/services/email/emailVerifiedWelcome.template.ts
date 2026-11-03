@@ -13,7 +13,7 @@ export function getEmailVerifiedWelcomeTemplate({
   name,
   email,
 }: EmailVerifiedWelcomeParams): EmailContent {
-  const subject = `Welcome to HackVsak! Your Email is Verified 🎉`;
+  const subject = `Welcome to OneAPI! Your Email is Verified 🎉`;
 
   const bodyContent = `
     <div class="greeting">Welcome aboard, ${name || 'there'}!</div>
@@ -22,7 +22,7 @@ export function getEmailVerifiedWelcomeTemplate({
     <p>Here are a few things you can do right now:</p>
     <ul>
       <li>Log in securely using your registered email and password.</li>
-      <li>Generate API keys to interact with HackVsak programmatically.</li>
+      <li>Generate API keys to interact with OneAPI programmatically.</li>
       <li>Access our protected endpoints and services.</li>
     </ul>
 
@@ -34,16 +34,16 @@ export function getEmailVerifiedWelcomeTemplate({
   `;
 
   const html = renderBaseEmailLayout({
-    title: 'Welcome to HackVsak',
-    previewText: `Your HackVsak email verification is complete! Welcome aboard.`,
+    title: 'Welcome to OneAPI',
+    previewText: `Your OneAPI email verification is complete! Welcome aboard.`,
     bodyContent,
   });
 
-  const text = `Welcome to HackVsak, ${name || 'there'}!
+  const text = `Welcome to OneAPI, ${name || 'there'}!
 
 Your email (${email}) has been verified and your account is now fully active.
 
-You can now log in, generate API keys, and explore all HackVsak services.
+You can now log in, generate API keys, and explore all OneAPI services.
 
 Welcome aboard!
 `;
