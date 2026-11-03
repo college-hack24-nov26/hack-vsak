@@ -1,9 +1,11 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import ThemeProvider from './components/ThemeProvider';
 
 export const metadata: Metadata = {
   title: 'OneAPI — Enterprise Multi-Provider Proxy Gateway',
-  description: 'Abstract and unify third-party providers with automatic failover.',
+  description:
+    'Abstract and unify third-party providers with automatic failover.',
 };
 
 export default function RootLayout({
@@ -12,9 +14,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-[#090d16] text-slate-100 antialiased selection:bg-sky-500 selection:text-white">
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen antialiased">
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

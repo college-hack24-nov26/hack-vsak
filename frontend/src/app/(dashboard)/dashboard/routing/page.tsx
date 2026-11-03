@@ -1,17 +1,24 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+
 import {
-  Sliders,
   Zap,
   ShieldCheck,
   RefreshCw,
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
-  Clock,
+  Clock3,
   Sparkles,
   Server,
   Play,
@@ -22,11 +29,23 @@ import {
   Plus,
   Trash2,
   Layers,
+  Activity,
+  Settings2,
+  GitBranch,
+  CircleDot,
+  Save,
+  X,
+  Workflow,
+  AlertCircle,
   Loader2,
-  Cpu,
 } from 'lucide-react';
+
 import { fetchApi, authStorage } from '@/lib/api';
-import { PROVIDERS_CATALOG, type Category, type ProviderCatalogItem } from '@/lib/providersCatalog';
+
+import {
+  PROVIDERS_CATALOG,
+  type Category,
+} from '@/lib/providersCatalog';
 
 interface RoutingConfigItem {
   category: Category;
@@ -41,36 +60,62 @@ interface RoutingConfigItem {
   updatedAt?: string | null;
 }
 
-const CATEGORY_DETAILS: Record<Category, { title: string; subtitle: string; icon: string; defaultTimeout: number }> = {
+const CATEGORY_DETAILS: Record<
+  Category,
+  {
+    title: string;
+    subtitle: string;
+    icon: string;
+    defaultTimeout: number;
+    color: string;
+    softColor: string;
+    borderColor: string;
+  }
+> = {
   ai: {
     title: 'AI & Large Language Models',
-    subtitle: 'Unified reasoning, streaming chat, and code generation failover pipeline.',
-    icon: '✨',
+    subtitle: 'Reasoning, chat completion and code generation.',
+    icon: '✦',
     defaultTimeout: 25000,
+    color: 'text-violet-500',
+    softColor: 'bg-violet-500/10',
+    borderColor: 'border-violet-500/20',
   },
   weather: {
-    title: 'Meteorological & Weather Data',
-    subtitle: 'Real-time hyper-local forecasts and atmospheric metrics with automatic fallback.',
-    icon: '⛅',
+    title: 'Weather & Meteorological Data',
+    subtitle: 'Current weather, forecasts and atmospheric metrics.',
+    icon: '☁',
     defaultTimeout: 5000,
+    color: 'text-sky-500',
+    softColor: 'bg-sky-500/10',
+    borderColor: 'border-sky-500/20',
   },
   music: {
     title: 'Music & Audio Catalog',
-    subtitle: 'Track metadata, artist discography, and stream query failover engine.',
-    icon: '🎵',
+    subtitle: 'Track metadata, artists and music discovery.',
+    icon: '♫',
     defaultTimeout: 5000,
+    color: 'text-pink-500',
+    softColor: 'bg-pink-500/10',
+    borderColor: 'border-pink-500/20',
   },
   news: {
     title: 'Global News & Feeds',
-    subtitle: 'Real-time technology news, spaceflight feeds, and headline syndication.',
-    icon: '📰',
+    subtitle: 'News search, articles and headline syndication.',
+    icon: '▤',
     defaultTimeout: 5000,
+    color: 'text-amber-500',
+    softColor: 'bg-amber-500/10',
+    borderColor: 'border-amber-500/20',
   },
   environment: {
-    title: 'Environmental & Air Quality',
-    subtitle: 'Global PM2.5, ozone, atmospheric sensor indices, and environmental failover.',
-    icon: '🌱',
+    title: 'Environment & Air Quality',
+    subtitle: 'Air quality, PM2.5 and environmental data.',
+    icon: '♧',
     defaultTimeout: 5000,
+    color: 'text-emerald-500',
+    softColor: 'bg-emerald-500/10',
+    borderColor: 'border-emerald-500/20',
   },
 };
 
@@ -80,23 +125,101 @@ const COMMON_STATUS_CODES = [
   { code: 502, label: '502 Bad Gateway' },
   { code: 503, label: '503 Unavailable' },
   { code: 504, label: '504 Timeout' },
-  { code: 401, label: '401 Key Auth Error' },
-  { code: 410, label: '410 Endpoint Retired' },
+  { code: 401, label: '401 Auth Error' },
+  { code: 410, label: '410 Retired' },
 ];
 
-function RoutingConfigContent() {
-  const searchParams = useSearchParams();
+const CATEGORIES: Category[] = [
+  'ai',
+  'weather',
+  'music',
+  'news',
+  'environment',
+];
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[10px] font-bold uppercase tracking-[0.17em] text-[var(--muted)]">
+      {children}
+    </p>
+  );
+}
+
+function StatusPill({
+  children,
+  type = 'neutral',
+}: {
+  children: React.ReactNode;
+  type?: 'success' | 'warning' | 'info' | 'danger' | 'neutral';
+}) {
+  const styles = {
+    success:
+      'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    warning:
+      'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    info: 'border-sky-500/20 bg-sky-500/10 text-sky-600 dark:text-sky-400',
+    danger:
+      'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+    neutral:
+      'border-[var(--border)] bg-[var(--surface-secondary)] text-[var(--muted)]',
+  };
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${styles[type]}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  color,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string | number;
+  detail: string;
+  color: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow)] sm:p-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
+          <p className="mt-2 text-2xl font-bold tracking-tight text-[var(--foreground)]">
+            {value}
+          </p>
+          <p className="mt-1 text-[10px] text-[var(--muted)]">{detail}</p>
+        </div>
+        <div className={`rounded-xl bg-[var(--surface-secondary)] p-2.5 ${color}`}>
+          <Icon size={19} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function RoutingConfigPage() {
   const [routingRules, setRoutingRules] = useState<RoutingConfigItem[]>([]);
   const [vaultSecrets, setVaultSecrets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingCat, setSavingCat] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [toastMessage, setToastMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [testingCat, setTestingCat] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, any>>({});
   const [filterCategory, setFilterCategory] = useState<string>('all');
 
   const loadData = async () => {
     setLoading(true);
+
     try {
       const paramProjectId = searchParams.get('project') || searchParams.get('projectId');
       if (paramProjectId) {
@@ -117,11 +240,14 @@ function RoutingConfigContent() {
       ]);
 
       if (rulesRes?.success) {
-        const rules = rulesRes.data?.routingRules || rulesRes.data?.rules || [];
+        const rules =
+          rulesRes.data?.routingRules || rulesRes.data?.rules || [];
         setRoutingRules(rules);
       }
+
       if (vaultRes?.success) {
-        const secrets = vaultRes.data?.vaultSecrets || vaultRes.data?.secrets || [];
+        const secrets =
+          vaultRes.data?.vaultSecrets || vaultRes.data?.secrets || [];
         setVaultSecrets(secrets);
       }
     } catch (err) {
@@ -144,7 +270,10 @@ function RoutingConfigContent() {
     };
   }, [searchParams]);
 
-  const showToast = (type: 'success' | 'error', text: string) => {
+  const showToast = (
+    type: 'success' | 'error',
+    text: string
+  ) => {
     setToastMessage({ type, text });
     setTimeout(() => setToastMessage(null), 4000);
   };
@@ -155,97 +284,107 @@ function RoutingConfigContent() {
     value: any
   ) => {
     setRoutingRules((prev) =>
-      prev.map((rule) => {
-        if (rule.category === category) {
-          return { ...rule, [field]: value };
-        }
-        return rule;
-      })
+      prev.map((rule) =>
+        rule.category === category
+          ? { ...rule, [field]: value }
+          : rule
+      )
     );
   };
 
   const toggleStatusCode = (category: Category, code: number) => {
     setRoutingRules((prev) =>
       prev.map((rule) => {
-        if (rule.category === category) {
-          const current = rule.retryOnStatusCodes || [];
-          const exists = current.includes(code);
-          const updated = exists ? current.filter((c) => c !== code) : [...current, code];
-          return { ...rule, retryOnStatusCodes: updated };
-        }
-        return rule;
+        if (rule.category !== category) return rule;
+
+        const current = rule.retryOnStatusCodes || [];
+        const exists = current.includes(code);
+
+        return {
+          ...rule,
+          retryOnStatusCodes: exists
+            ? current.filter((c) => c !== code)
+            : [...current, code],
+        };
       })
     );
   };
 
-  const addFallbackStep = (category: Category, providerId: string) => {
+  const getFallbackList = (rule: RoutingConfigItem) => {
+    return rule.fallbackProviderIds?.length
+      ? [...rule.fallbackProviderIds]
+      : rule.fallbackProviderId && rule.fallbackProviderId !== 'none'
+        ? [rule.fallbackProviderId]
+        : [];
+  };
+
+  const addFallbackStep = (
+    category: Category,
+    providerId: string
+  ) => {
     setRoutingRules((prev) =>
       prev.map((rule) => {
-        if (rule.category === category) {
-          const currentList =
-            rule.fallbackProviderIds && rule.fallbackProviderIds.length > 0
-              ? [...rule.fallbackProviderIds]
-              : rule.fallbackProviderId && rule.fallbackProviderId !== 'none'
-              ? [rule.fallbackProviderId]
-              : [];
+        if (rule.category !== category) return rule;
 
-          if (!currentList.includes(providerId)) {
-            const updated = [...currentList, providerId];
-            return {
-              ...rule,
-              fallbackProviderIds: updated,
-              fallbackProviderId: updated[0] || 'none',
-            };
-          }
-        }
-        return rule;
+        const currentList = getFallbackList(rule);
+
+        if (currentList.includes(providerId)) return rule;
+
+        const updated = [...currentList, providerId];
+
+        return {
+          ...rule,
+          fallbackProviderIds: updated,
+          fallbackProviderId: updated[0] || 'none',
+        };
       })
     );
   };
 
-  const removeFallbackStep = (category: Category, index: number) => {
+  const removeFallbackStep = (
+    category: Category,
+    index: number
+  ) => {
     setRoutingRules((prev) =>
       prev.map((rule) => {
-        if (rule.category === category) {
-          const currentList =
-            rule.fallbackProviderIds && rule.fallbackProviderIds.length > 0
-              ? [...rule.fallbackProviderIds]
-              : rule.fallbackProviderId && rule.fallbackProviderId !== 'none'
-              ? [rule.fallbackProviderId]
-              : [];
+        if (rule.category !== category) return rule;
 
-          const updated = currentList.filter((_, idx) => idx !== index);
-          return {
-            ...rule,
-            fallbackProviderIds: updated,
-            fallbackProviderId: updated[0] || 'none',
-          };
-        }
-        return rule;
+        const updated = getFallbackList(rule).filter(
+          (_, idx) => idx !== index
+        );
+
+        return {
+          ...rule,
+          fallbackProviderIds: updated,
+          fallbackProviderId: updated[0] || 'none',
+        };
       })
     );
   };
 
-  const updateFallbackStep = (category: Category, index: number, newProviderId: string) => {
+  const updateFallbackStep = (
+    category: Category,
+    index: number,
+    newProviderId: string
+  ) => {
     setRoutingRules((prev) =>
       prev.map((rule) => {
-        if (rule.category === category) {
-          const currentList =
-            rule.fallbackProviderIds && rule.fallbackProviderIds.length > 0
-              ? [...rule.fallbackProviderIds]
-              : rule.fallbackProviderId && rule.fallbackProviderId !== 'none'
-              ? [rule.fallbackProviderId]
-              : [];
+        if (rule.category !== category) return rule;
 
-          currentList[index] = newProviderId;
-          const cleaned = Array.from(new Set(currentList.filter((id) => id && id !== 'none')));
-          return {
-            ...rule,
-            fallbackProviderIds: cleaned,
-            fallbackProviderId: cleaned[0] || 'none',
-          };
-        }
-        return rule;
+        const currentList = getFallbackList(rule);
+        currentList[index] = newProviderId;
+
+        const cleaned = Array.from(
+          new Set(
+            currentList.filter((id) => id && id !== 'none')
+          )
+        );
+
+        return {
+          ...rule,
+          fallbackProviderIds: cleaned,
+          fallbackProviderId: cleaned[0] || 'none',
+        };
       })
     );
   };
@@ -255,13 +394,9 @@ function RoutingConfigContent() {
     if (!rule) return;
 
     setSavingCat(category);
+
     try {
-      const fallbackList =
-        rule.fallbackProviderIds && rule.fallbackProviderIds.length > 0
-          ? rule.fallbackProviderIds
-          : rule.fallbackProviderId && rule.fallbackProviderId !== 'none'
-          ? [rule.fallbackProviderId]
-          : [];
+      const fallbackList = getFallbackList(rule);
 
       const res = await fetchApi('/api/v1/routing', {
         method: 'PUT',
@@ -279,14 +414,20 @@ function RoutingConfigContent() {
       if (res.success) {
         showToast(
           'success',
-          `Routing for ${category.toUpperCase()} saved: Primary + ${fallbackList.length} Fallbacks in cascade.`
+          `Routing for ${category.toUpperCase()} saved successfully.`
         );
         await loadData();
       } else {
-        showToast('error', res.error?.message || 'Failed to update routing configuration.');
+        showToast(
+          'error',
+          res.error?.message || 'Failed to update routing configuration.'
+        );
       }
     } catch (err: any) {
-      showToast('error', err.message || 'Network error saving configuration.');
+      showToast(
+        'error',
+        err.message || 'Network error saving configuration.'
+      );
     } finally {
       setSavingCat(null);
     }
@@ -308,7 +449,12 @@ function RoutingConfigContent() {
         endpoint = '/api/v1/proxy/ai/chat';
         method = 'POST';
         body = JSON.stringify({
-          messages: [{ role: 'user', content: 'What is OneAPI failover in 1 bullet point?' }],
+          messages: [
+            {
+              role: 'user',
+              content: 'What is OneAPI failover in 1 bullet point?',
+            },
+          ],
         });
       } else if (category === 'weather') {
         endpoint = '/api/v1/proxy/weather/current?city=Tokyo';
@@ -317,26 +463,39 @@ function RoutingConfigContent() {
       } else if (category === 'news') {
         endpoint = '/api/v1/proxy/news/search?q=space&limit=2';
       } else if (category === 'environment') {
-        endpoint = '/api/v1/proxy/environment/air-quality?city=Paris';
+        endpoint =
+          '/api/v1/proxy/environment/air-quality?city=Paris';
       }
 
       const res = await fetchApi(endpoint, { method, body });
       const latencyMs = Math.round(performance.now() - startTime);
-
       const payload = (res.data || res) as any;
+
       let summary = '';
+
       if (category === 'ai') {
-        summary = payload.choices?.[0]?.message?.content || payload.content || 'Reasoning response received.';
+        summary =
+          payload.choices?.[0]?.message?.content ||
+          payload.content ||
+          'Reasoning response received.';
       } else if (category === 'weather') {
-        summary = `📍 ${payload.location || 'Tokyo'}: ${payload.current?.condition || 'Clear'} | Temp: ${payload.current?.temperature ?? 20}°C`;
+        summary = `${payload.location || 'Tokyo'}: ${
+          payload.current?.condition || 'Clear'
+        } | Temp: ${payload.current?.temperature ?? 20}°C`;
       } else if (category === 'music') {
         const count = payload.tracks?.length || 0;
-        summary = `🎵 Retrieved ${count} tracks from ${res._oneapi?.finalProvider || 'provider'}.`;
+        summary = `Retrieved ${count} tracks from ${
+          res._oneapi?.finalProvider || 'provider'
+        }.`;
       } else if (category === 'news') {
         const count = payload.articles?.length || 0;
-        summary = `📰 Retrieved ${count} articles from ${res._oneapi?.finalProvider || 'provider'}.`;
+        summary = `Retrieved ${count} articles from ${
+          res._oneapi?.finalProvider || 'provider'
+        }.`;
       } else if (category === 'environment') {
-        summary = `🌱 Air Quality: PM2.5 = ${payload.airQuality?.pm25 ?? 'Normal'} (${payload.location || 'Paris'})`;
+        summary = `Air Quality: PM2.5 = ${
+          payload.airQuality?.pm25 ?? 'Normal'
+        } (${payload.location || 'Paris'})`;
       }
 
       setTestResults((prev) => ({
@@ -344,7 +503,8 @@ function RoutingConfigContent() {
         [category]: {
           success: res.success,
           latencyMs,
-          finalProvider: res._oneapi?.finalProvider || rule.primaryProviderId,
+          finalProvider:
+            res._oneapi?.finalProvider || rule.primaryProviderId,
           fallbackTriggered: Boolean(res._oneapi?.fallbackTriggered),
           fallbackReason: res._oneapi?.fallbackReason,
           summary,
@@ -366,479 +526,1010 @@ function RoutingConfigContent() {
     }
   };
 
-  const categories: Category[] = ['ai', 'weather', 'music', 'news', 'environment'];
-  const filteredCategories = filterCategory === 'all' ? categories : categories.filter((c) => c === filterCategory);
+  const filteredCategories =
+    filterCategory === 'all'
+      ? CATEGORIES
+      : CATEGORIES.filter((category) => category === filterCategory);
+
+  const totalFallbacks = routingRules.reduce(
+    (total, rule) => total + getFallbackList(rule).length,
+    0
+  );
+
+  const directOnlyCount = routingRules.filter(
+    (rule) => getFallbackList(rule).length === 0
+  ).length;
+
+  const configuredKeys = vaultSecrets.length;
+
+  const categoriesWithRules = routingRules.length;
+
+  const getRuleForCategory = (cat: Category): RoutingConfigItem => {
+    const detail = CATEGORY_DETAILS[cat];
+    const providers = PROVIDERS_CATALOG.filter(
+      (provider) => provider.category === cat
+    );
+
+    return (
+      routingRules.find((rule) => rule.category === cat) || {
+        category: cat,
+        primaryProviderId: providers[0]?.id || '',
+        fallbackProviderId: 'none',
+        fallbackProviderIds: [],
+        timeoutMs: detail.defaultTimeout,
+        retryOnStatusCodes: [429, 500, 502, 503, 504],
+      }
+    );
+  };
+
+  const savedRulesCount = useMemo(
+    () => routingRules.filter((rule) => rule.isCustomized).length,
+    [routingRules]
+  );
 
   return (
-    <div className="space-y-6">
-      {/* Toast Alert */}
+    <div className="min-h-full space-y-6 pb-10">
+      {/* Toast */}
       {toastMessage && (
         <div
-          className={`fixed top-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-semibold backdrop-blur-md transition-all ${
+          role="status"
+          className={`fixed right-5 top-5 z-[70] flex max-w-sm items-start gap-3 rounded-2xl border p-4 shadow-2xl backdrop-blur-xl ${
             toastMessage.type === 'success'
-              ? 'bg-emerald-950/90 text-emerald-300'
-              : 'bg-rose-950/90 text-rose-300'
+              ? 'border-emerald-500/20 bg-[var(--card)] text-emerald-600 dark:text-emerald-400'
+              : 'border-rose-500/20 bg-[var(--card)] text-rose-600 dark:text-rose-400'
           }`}
         >
           {toastMessage.type === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <CheckCircle2 size={18} className="mt-0.5 shrink-0" />
           ) : (
-            <AlertTriangle className="w-4 h-4 text-rose-400" />
+            <AlertTriangle size={18} className="mt-0.5 shrink-0" />
           )}
-          <span>{toastMessage.text}</span>
+          <p className="flex-1 text-xs font-semibold leading-5">
+            {toastMessage.text}
+          </p>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-[var(--muted)] hover:text-[var(--foreground)]"
+            aria-label="Dismiss notification"
+          >
+            <X size={15} />
+          </button>
         </div>
       )}
 
-      {/* 1. Header Banner */}
-      <div className="p-6 md:p-8 rounded-2xl bg-[#111827] shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 text-[10px] font-mono font-bold tracking-wider uppercase">
-              HIGH-AVAILABILITY CONTROLLER
-            </span>
-            <span className="text-xs text-slate-400">&bull; Multi-Domain Gateway</span>
+          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--primary)]">
+            <Workflow size={13} />
+            Infrastructure
+            <ChevronRight size={12} />
+            Routing control
           </div>
-          <h2 className="text-xl md:text-2xl font-extrabold text-white flex items-center gap-2">
-            <Sliders className="w-6 h-6 text-sky-400" />
-            Routing &amp; Failover Configuration
-          </h2>
-          <p className="text-xs md:text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">
-            Configure primary engines and optional automated failovers for all domains. Set fallback to <code className="text-sky-300 font-bold">&quot;None (Direct Call Only)&quot;</code> if you want to bypass secondary failovers entirely.
+
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
+            Routing & Failover
+          </h1>
+
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+            Design how requests move across providers. Control primary
+            engines, fallback cascades, timeout policies and retry triggers.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href="/dashboard/providers"
-            className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3.5 py-2.5 text-xs font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-secondary)]"
           >
-            <Server className="w-3.5 h-3.5 text-sky-400" />
-            <span>Provider Catalog</span>
+            <Server size={14} />
+            Provider catalog
           </Link>
+
           <button
+            type="button"
             onClick={loadData}
             disabled={loading}
-            className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-sky-400' : ''}`} />
-            <span>Reload</span>
+            <RefreshCw
+              size={14}
+              className={loading ? 'animate-spin' : ''}
+            />
+            {loading ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>
 
-      {/* 2. Category Filter Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        <button
-          onClick={() => setFilterCategory('all')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 cursor-pointer transition-colors ${
-            filterCategory === 'all' ? 'bg-sky-500 text-white font-bold' : 'bg-slate-900 text-slate-400 hover:text-white'
-          }`}
-        >
-          All Domains (5)
-        </button>
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setFilterCategory(cat)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 cursor-pointer transition-colors flex items-center gap-1.5 ${
-              filterCategory === cat ? 'bg-sky-500 text-white font-bold' : 'bg-slate-900 text-slate-400 hover:text-white'
-            }`}
-          >
-            <span>{CATEGORY_DETAILS[cat].icon}</span>
-            <span className="capitalize">{cat}</span>
-          </button>
-        ))}
-      </div>
+      {/* Hero */}
+      <section className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow)]">
+        <div className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full bg-[var(--primary)]/[0.09] blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 right-1/3 h-40 w-40 rounded-full bg-violet-500/[0.06] blur-3xl" />
 
-      {/* 3. Scalable Routing Cards Grid */}
-      <div className="space-y-5">
-        {filteredCategories.map((cat) => {
-          const detail = CATEGORY_DETAILS[cat];
-          const catProviders = PROVIDERS_CATALOG.filter((p) => p.category === cat);
-          const currentRule =
-            routingRules.find((r) => r.category === cat) || {
-              category: cat,
-              primaryProviderId: catProviders[0]?.id || '',
-              fallbackProviderId: 'none',
-              timeoutMs: detail.defaultTimeout,
-              retryOnStatusCodes: [429, 500, 502, 503, 504],
-            };
+        <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_300px] lg:items-center">
+          <div>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <StatusPill type="info">
+                <Sparkles size={11} />
+                High availability controller
+              </StatusPill>
+              <StatusPill type="success">
+                <ShieldCheck size={11} />
+                Multi-provider routing
+              </StatusPill>
+            </div>
 
-          const activeFallbackList =
-            currentRule.fallbackProviderIds && currentRule.fallbackProviderIds.length > 0
-              ? currentRule.fallbackProviderIds
-              : currentRule.fallbackProviderId && currentRule.fallbackProviderId !== 'none'
-              ? [currentRule.fallbackProviderId]
-              : [];
+            <h2 className="max-w-xl text-xl font-bold leading-tight tracking-tight text-[var(--foreground)] sm:text-2xl">
+              Build resilient request pipelines with intelligent failover.
+            </h2>
 
-          const availableAdditionalFallbacks = catProviders.filter(
-            (p) => p.id !== currentRule.primaryProviderId && !activeFallbackList.includes(p.id)
-          );
+            <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--muted)]">
+              Define a primary provider and an ordered sequence of
+              alternatives. When a configured retry condition occurs,
+              your gateway can move to the next provider in the cascade.
+            </p>
 
-          const isDirectOnly = activeFallbackList.length === 0;
-          const primaryProviderObj = catProviders.find((p) => p.id === currentRule.primaryProviderId);
-          const fallbackProviderObj = catProviders.find((p) => p.id === activeFallbackList[0]);
-          const isSaving = savingCat === cat;
-          const isTesting = testingCat === cat;
-          const currentTest = testResults[cat];
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  document
+                    .getElementById('routing-domains')
+                    ?.scrollIntoView({ behavior: 'smooth' })
+                }
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-xs font-bold text-white transition hover:opacity-90"
+              >
+                Configure pipelines
+                <ArrowRight size={14} />
+              </button>
 
-          // Check vault key status for primary and fallback
-          const primaryHasKey =
-            !primaryProviderObj?.requiresKey ||
-            vaultSecrets.some((s) => s.category?.toLowerCase() === cat && s.providerId?.toLowerCase() === primaryProviderObj?.id?.toLowerCase());
-          const fallbackHasKey =
-            isDirectOnly ||
-            !fallbackProviderObj?.requiresKey ||
-            vaultSecrets.some((s) => s.category?.toLowerCase() === cat && s.providerId?.toLowerCase() === fallbackProviderObj?.id?.toLowerCase());
+              <Link
+                href="/dashboard/providers"
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-xs font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-secondary)]"
+              >
+                View providers
+                <ExternalLink size={13} />
+              </Link>
+            </div>
+          </div>
 
-          return (
-            <div
-              key={cat}
-              className="p-6 md:p-7 rounded-2xl bg-[#111827] shadow-xl space-y-6 relative overflow-hidden"
-            >
-              {/* Card Header */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-transparent">
-                <div className="flex items-center gap-3.5">
-                  <span className="text-3xl p-2.5 rounded-2xl bg-slate-900/90 shadow-inner">
-                    {detail.icon}
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-white tracking-wide">
-                        {detail.title}
-                      </h3>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold uppercase bg-sky-500/10 text-sky-400">
-                        {cat}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-0.5">{detail.subtitle}</p>
-                  </div>
+          {/* Abstract cascade visual */}
+          <div className="hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 lg:block">
+            <div className="mb-4 flex items-center justify-between">
+              <SectionLabel>Request flow</SectionLabel>
+              <Activity size={15} className="text-[var(--primary)]" />
+            </div>
+
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--primary)]/10 text-[var(--primary)]">
+                  <Server size={15} />
                 </div>
-
-                <div className="flex items-center gap-2 self-start md:self-auto">
-                  <span
-                    className={`px-3 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 ${
-                      isDirectOnly
-                        ? 'bg-slate-800 text-slate-300'
-                        : 'bg-emerald-500/15 text-emerald-400'
-                    }`}
-                  >
-                    <Zap className="w-3 h-3" />
-                    <span>{isDirectOnly ? 'Direct Call (Primary Only)' : 'Automated Failover Active'}</span>
-                  </span>
-                </div>
-              </div>
-
-              {/* Main Routing Selectors: 2 Columns */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                {/* 1. Primary Engine */}
-                <div className="p-4 rounded-xl bg-slate-900/90 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <Zap className="w-3.5 h-3.5 text-sky-400 fill-sky-400" />
-                      <span>Primary Provider</span>
-                    </label>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                        primaryHasKey ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'
-                      }`}
-                    >
-                      {primaryHasKey ? '✓ Ready / Key Set' : '⚠️ Vault Key Needed'}
-                    </span>
-                  </div>
-
-                  <select
-                    value={currentRule.primaryProviderId}
-                    onChange={(e) => updateRuleField(cat, 'primaryProviderId', e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 text-white font-semibold text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
-                  >
-                    {catProviders.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} {p.requiresKey ? '(Key Required)' : '(Public Free API)'}
-                      </option>
-                    ))}
-                  </select>
-
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    All incoming requests to <code className="text-sky-300">/api/v1/proxy/{cat}/*</code> will first route directly to this provider.
-                  </p>
-
-                  {/* AI Primary Model Selection */}
-                  {cat === 'ai' && primaryProviderObj?.supportedModels && (
-                    <div className="pt-2 border-t border-slate-800 space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-300 font-semibold flex items-center gap-1">
-                          <Cpu className="w-3 h-3 text-sky-400" /> Primary AI Model:
-                        </span>
-                        <span className="text-[10px] text-sky-400 font-mono">
-                          {currentRule.models?.[currentRule.primaryProviderId] || primaryProviderObj.defaultModel}
-                        </span>
-                      </div>
-                      <select
-                        value={currentRule.models?.[currentRule.primaryProviderId] || primaryProviderObj.defaultModel}
-                        onChange={(e) => {
-                          const updatedModels = { ...(currentRule.models || {}), [currentRule.primaryProviderId]: e.target.value };
-                          updateRuleField(cat, 'models' as any, updatedModels);
-                        }}
-                        className="w-full px-3 py-2 bg-slate-950 text-white font-mono text-xs rounded-xl border border-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
-                      >
-                        {primaryProviderObj.supportedModels.map((m) => (
-                          <option key={m} value={m} className="bg-slate-900 text-white">
-                            {m} {m === primaryProviderObj.defaultModel ? '⭐ (Default)' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. Multi-Level Fallback Cascade Engine */}
-                <div className="p-4 rounded-xl bg-slate-900/90 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Fallback Priority Cascade ({activeFallbackList.length} Levels)</span>
-                    </label>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                        activeFallbackList.length === 0
-                          ? 'bg-slate-800 text-slate-400'
-                          : 'bg-emerald-500/15 text-emerald-400'
-                      }`}
-                    >
-                      {activeFallbackList.length === 0 ? 'Direct Only' : `${activeFallbackList.length} Fallbacks Active`}
-                    </span>
-                  </div>
-
-                  {activeFallbackList.length === 0 ? (
-                    <div className="p-3 rounded-xl bg-slate-950/80 text-xs text-slate-400 flex items-center justify-between">
-                      <span>No fallback configured. Errors return directly.</span>
-                      {availableAdditionalFallbacks.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => addFallbackStep(cat, availableAdditionalFallbacks[0].id)}
-                          className="px-2.5 py-1 bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 rounded-lg text-[11px] font-bold cursor-pointer transition-colors"
-                        >
-                          + Enable Fallback
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {activeFallbackList.map((fbId, fbIdx) => {
-                        const fbObj = catProviders.find((p) => p.id === fbId);
-                        const hasKey =
-                          !fbObj?.requiresKey ||
-                          vaultSecrets.some(
-                            (s) =>
-                              s.category?.toLowerCase() === cat &&
-                              s.providerId?.toLowerCase() === fbId.toLowerCase()
-                          );
-
-                        return (
-                          <div
-                            key={fbIdx}
-                            className="p-2.5 rounded-xl bg-slate-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
-                          >
-                            <div className="flex items-center gap-2 flex-1">
-                              <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono text-[10px] font-bold shrink-0">
-                                #{fbIdx + 1}
-                              </span>
-                              <select
-                                value={fbId}
-                                onChange={(e) => updateFallbackStep(cat, fbIdx, e.target.value)}
-                                className="bg-transparent text-white font-semibold text-xs rounded focus:outline-none cursor-pointer flex-1"
-                              >
-                                {catProviders
-                                  .filter((p) => p.id !== currentRule.primaryProviderId)
-                                  .map((p) => (
-                                    <option key={p.id} value={p.id} className="bg-slate-900 text-white">
-                                      {p.name} {p.requiresKey ? '(Key Required)' : '(Public)'}
-                                    </option>
-                                  ))}
-                              </select>
-                            </div>
-
-                            <div className="flex items-center gap-2 self-end sm:self-auto">
-                              <span
-                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                  hasKey ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'
-                                }`}
-                              >
-                                {hasKey ? '✓ Ready' : 'Key Needed'}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => removeFallbackStep(cat, fbIdx)}
-                                className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer"
-                                title="Remove this fallback level"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Add more fallbacks button */}
-                  {availableAdditionalFallbacks.length > 0 && activeFallbackList.length > 0 && (
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-[11px] text-slate-400">Available: {availableAdditionalFallbacks.length} more</span>
-                      <button
-                        type="button"
-                        onClick={() => addFallbackStep(cat, availableAdditionalFallbacks[0].id)}
-                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-bold cursor-pointer transition-colors flex items-center gap-1"
-                      >
-                        <Plus className="w-3 h-3 text-emerald-400" />
-                        <span>Add Fallback Stage ({availableAdditionalFallbacks[0].name.split(' (')[0]})</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Visual Multi-Level Failover Cascade Flowchart */}
-              <div className="p-3.5 rounded-xl bg-slate-950/60 flex flex-wrap items-center gap-2 text-xs font-mono">
-                <span className="text-slate-400 text-[11px] font-sans font-bold">Execution Cascade:</span>
-                <span className="px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-300 font-bold flex items-center gap-1">
-                  <Zap className="w-3 h-3" />
-                  <span>Primary: {primaryProviderObj?.name.split(' (')[0] || currentRule.primaryProviderId}</span>
-                </span>
-
-                {activeFallbackList.length === 0 ? (
-                  <span className="text-slate-500 text-[11px]">──► Direct (No Failover)</span>
-                ) : (
-                  activeFallbackList.map((fbId, fbIdx) => {
-                    const fbObj = catProviders.find((p) => p.id === fbId);
-                    return (
-                      <React.Fragment key={fbIdx}>
-                        <span className="text-slate-500 font-bold">──►</span>
-                        <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 font-bold flex items-center gap-1">
-                          <RotateCcw className="w-3 h-3" />
-                          <span>
-                            Fallback #{fbIdx + 1}: {fbObj?.name.split(' (')[0] || fbId}
-                          </span>
-                        </span>
-                      </React.Fragment>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Advanced Controls: Timeout & Failover Triggers */}
-              <div className="p-4 rounded-xl bg-slate-950/70 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-sky-400" />
-                      Request Timeout (ms)
-                    </h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Maximum waiting duration before initiating automatic fallback switchover.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={1000}
-                      max={60000}
-                      step={500}
-                      value={currentRule.timeoutMs}
-                      onChange={(e) => updateRuleField(cat, 'timeoutMs', Number(e.target.value))}
-                      className="w-28 px-3 py-1.5 bg-slate-900 text-white font-mono text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 text-right"
-                    />
-                    <span className="text-xs text-slate-400 font-mono">ms</span>
-                  </div>
-                </div>
-
                 <div>
-                  <h4 className="text-xs font-bold text-slate-300 mb-1.5">
-                    Failover Trigger HTTP Status Codes:
-                  </h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    {COMMON_STATUS_CODES.map((st) => {
-                      const isSelected = (currentRule.retryOnStatusCodes || []).includes(st.code);
-                      return (
-                        <button
-                          key={st.code}
-                          type="button"
-                          onClick={() => toggleStatusCode(cat, st.code)}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold cursor-pointer transition-colors ${
-                            isSelected
-                              ? 'bg-sky-500/20 text-sky-300'
-                              : 'bg-slate-900 text-slate-500 hover:text-slate-300'
-                          }`}
-                        >
-                          {isSelected ? '✓ ' : ''}{st.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Test Output Console */}
-              {currentTest && (
-                <div
-                  className={`p-4 rounded-xl text-xs font-mono space-y-2 ${
-                    currentTest.success ? 'bg-emerald-950/40 text-emerald-300' : 'bg-rose-950/40 text-rose-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between font-bold text-[11px]">
-                    <span className="flex items-center gap-1.5">
-                      {currentTest.success ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
-                      Pipeline Status: {currentTest.success ? '200 OK' : 'Execution Error'}
-                    </span>
-                    <span>Latency: {currentTest.latencyMs}ms</span>
-                  </div>
-                  <p className="text-[11px] leading-relaxed select-all">
-                    {currentTest.summary}
+                  <p className="text-xs font-bold text-[var(--foreground)]">
+                    Incoming request
                   </p>
-                  <div className="text-[10px] text-slate-400 flex items-center gap-3 pt-1 border-t border-transparent">
-                    <span>Final Engine: <strong>{currentTest.finalProvider}</strong></span>
-                    <span>Fallback Triggered: <strong>{currentTest.fallbackTriggered ? 'YES' : 'NO'}</strong></span>
-                  </div>
-                </div>
-              )}
-
-              {/* Card Actions Footer */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                <div className="text-[11px] text-slate-400">
-                  {currentRule.updatedAt ? (
-                    <span>Last updated: {new Date(currentRule.updatedAt).toLocaleTimeString()}</span>
-                  ) : (
-                    <span>Using default production routing rules</span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={isTesting}
-                    onClick={() => handleTestPipeline(cat)}
-                    className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
-                  >
-                    <Play className={`w-3.5 h-3.5 ${isTesting ? 'animate-pulse text-sky-400' : 'text-sky-400'}`} />
-                    <span>{isTesting ? 'Testing Pipeline...' : 'Test Pipeline'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={isSaving}
-                    onClick={() => handleSaveRule(cat)}
-                    className="px-4 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-sky-500/20 flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>{isSaving ? 'Saving...' : 'Save Configuration'}</span>
-                  </button>
+                  <p className="text-[10px] text-[var(--muted)]">
+                    OneAPI gateway
+                  </p>
                 </div>
               </div>
             </div>
-          );
-        })}
+
+            <div className="ml-7 h-5 border-l border-dashed border-[var(--border)]" />
+
+            <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3">
+              <div className="flex items-center gap-2">
+                <Zap size={15} className="text-sky-500" />
+                <div>
+                  <p className="text-xs font-bold text-[var(--foreground)]">
+                    Primary provider
+                  </p>
+                  <p className="text-[10px] text-[var(--muted)]">
+                    First execution target
+                  </p>
+                </div>
+                <span className="ml-auto text-[9px] font-bold text-sky-500">
+                  01
+                </span>
+              </div>
+            </div>
+
+            <div className="ml-7 h-5 border-l border-dashed border-[var(--border)]" />
+
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+              <div className="flex items-center gap-2">
+                <RotateCcw size={15} className="text-emerald-500" />
+                <div>
+                  <p className="text-xs font-bold text-[var(--foreground)]">
+                    Fallback cascade
+                  </p>
+                  <p className="text-[10px] text-[var(--muted)]">
+                    Alternative execution targets
+                  </p>
+                </div>
+                <span className="ml-auto text-[9px] font-bold text-emerald-500">
+                  02+
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          icon={Layers}
+          label="Service domains"
+          value={CATEGORIES.length}
+          detail="Available routing categories"
+          color="text-violet-500"
+        />
+        <StatCard
+          icon={GitBranch}
+          label="Fallback stages"
+          value={totalFallbacks}
+          detail="Across loaded routing rules"
+          color="text-emerald-500"
+        />
+        <StatCard
+          icon={Zap}
+          label="Direct-only routes"
+          value={directOnlyCount}
+          detail="Loaded rules without fallback"
+          color="text-amber-500"
+        />
+        <StatCard
+          icon={Settings2}
+          label="Customized rules"
+          value={savedRulesCount}
+          detail="Marked customized by API response"
+          color="text-sky-500"
+        />
+      </div>
+
+      {/* Categories */}
+      <section id="routing-domains" className="scroll-mt-5">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <SectionLabel>Routing workspace</SectionLabel>
+            <h2 className="mt-1 text-lg font-bold text-[var(--foreground)]">
+              Service domains
+            </h2>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Configure execution priority and reliability policies per
+              category.
+            </p>
+          </div>
+
+          <span className="text-xs text-[var(--muted)]">
+            {filteredCategories.length} domains displayed
+          </span>
+        </div>
+
+        {/* Filters */}
+        <div className="mb-5 flex gap-2 overflow-x-auto pb-2">
+          <button
+            type="button"
+            onClick={() => setFilterCategory('all')}
+            className={`shrink-0 rounded-xl border px-3.5 py-2.5 text-xs font-semibold transition ${
+              filterCategory === 'all'
+                ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-md shadow-[var(--primary)]/15'
+                : 'border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--foreground)]'
+            }`}
+          >
+            All domains
+            <span className="ml-2 opacity-70">{CATEGORIES.length}</span>
+          </button>
+
+          {CATEGORIES.map((cat) => {
+            const detail = CATEGORY_DETAILS[cat];
+            const active = filterCategory === cat;
+
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setFilterCategory(cat)}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-semibold capitalize transition ${
+                  active
+                    ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-md shadow-[var(--primary)]/15'
+                    : 'border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--foreground)]'
+                }`}
+              >
+                <span>{detail.icon}</span>
+                {cat}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="space-y-5">
+          {filteredCategories.map((cat) => {
+            const detail = CATEGORY_DETAILS[cat];
+            const catProviders = PROVIDERS_CATALOG.filter(
+              (p) => p.category === cat
+            );
+
+            const currentRule = getRuleForCategory(cat);
+            const activeFallbackList = getFallbackList(currentRule);
+
+            const availableAdditionalFallbacks = catProviders.filter(
+              (p) =>
+                p.id !== currentRule.primaryProviderId &&
+                !activeFallbackList.includes(p.id)
+            );
+
+            const isDirectOnly = activeFallbackList.length === 0;
+            const primaryProviderObj = catProviders.find(
+              (p) => p.id === currentRule.primaryProviderId
+            );
+
+            const primaryHasKey =
+              !primaryProviderObj?.requiresKey ||
+              vaultSecrets.some(
+                (s) =>
+                  s.category?.toLowerCase() === cat &&
+                  s.providerId?.toLowerCase() ===
+                    primaryProviderObj?.id?.toLowerCase()
+              );
+
+            const isSaving = savingCat === cat;
+            const isTesting = testingCat === cat;
+            const currentTest = testResults[cat];
+
+            return (
+              <article
+                key={cat}
+                className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm transition hover:shadow-[var(--shadow)]"
+              >
+                {/* Card header */}
+                <div className="flex flex-col gap-4 border-b border-[var(--border)] bg-[var(--surface)]/70 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${detail.borderColor} ${detail.softColor}`}
+                    >
+                      <span className={`text-2xl ${detail.color}`}>
+                        {detail.icon}
+                      </span>
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-bold text-[var(--foreground)] sm:text-base">
+                          {detail.title}
+                        </h3>
+                        <span
+                          className={`rounded-md border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${detail.borderColor} ${detail.softColor} ${detail.color}`}
+                        >
+                          {cat}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-[var(--muted)]">
+                        {detail.subtitle}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <StatusPill type={isDirectOnly ? 'neutral' : 'success'}>
+                      {isDirectOnly ? (
+                        <CircleDot size={11} />
+                      ) : (
+                        <Zap size={11} />
+                      )}
+                      {isDirectOnly ? 'Primary only' : 'Failover enabled'}
+                    </StatusPill>
+
+                    {currentRule.isCustomized && (
+                      <StatusPill type="info">Customized</StatusPill>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-6 p-5 sm:p-6">
+                  {/* Main selectors */}
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {/* Primary */}
+                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-sky-500">
+                            <Zap size={15} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-[var(--foreground)]">
+                              Primary provider
+                            </p>
+                            <p className="text-[10px] text-[var(--muted)]">
+                              First execution target
+                            </p>
+                          </div>
+                        </div>
+
+                        <StatusPill
+                          type={primaryHasKey ? 'success' : 'warning'}
+                        >
+                          {primaryHasKey ? (
+                            <>
+                              <CheckCircle2 size={10} />
+                              Ready
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle size={10} />
+                              Key needed
+                            </>
+                          )}
+                        </StatusPill>
+                      </div>
+
+                      <select
+                        value={currentRule.primaryProviderId}
+                        onChange={(e) =>
+                          updateRuleField(
+                            cat,
+                            'primaryProviderId',
+                            e.target.value
+                          )
+                        }
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-3.5 py-3 text-xs font-semibold text-[var(--foreground)] outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/10"
+                      >
+                        {catProviders.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}{' '}
+                            {p.requiresKey
+                              ? '(Key Required)'
+                              : '(Public Free API)'}
+                          </option>
+                        ))}
+                      </select>
+
+                      <p className="mt-3 text-[10px] leading-5 text-[var(--muted)]">
+                        Incoming requests are first routed to this provider.
+                      </p>
+                    </div>
+
+                    {/* Fallback */}
+                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                            <Layers size={15} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-[var(--foreground)]">
+                              Fallback cascade
+                            </p>
+                            <p className="text-[10px] text-[var(--muted)]">
+                              Ordered backup providers
+                            </p>
+                          </div>
+                        </div>
+
+                        <StatusPill
+                          type={
+                            activeFallbackList.length ? 'success' : 'neutral'
+                          }
+                        >
+                          {activeFallbackList.length} stages
+                        </StatusPill>
+                      </div>
+
+                      {activeFallbackList.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--card)] p-4">
+                          <div className="flex items-center gap-2 text-[var(--muted)]">
+                            <CircleDot size={15} />
+                            <p className="text-xs font-medium">
+                              No fallback providers configured.
+                            </p>
+                          </div>
+                          <p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">
+                            Requests use the primary provider only.
+                          </p>
+
+                          {availableAdditionalFallbacks.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                addFallbackStep(
+                                  cat,
+                                  availableAdditionalFallbacks[0].id
+                                )
+                              }
+                              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-2 text-[10px] font-bold text-emerald-600 transition hover:bg-emerald-500/15 dark:text-emerald-400"
+                            >
+                              <Plus size={12} />
+                              Add first fallback
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {activeFallbackList.map((fbId, fbIdx) => {
+                            const fbObj = catProviders.find(
+                              (p) => p.id === fbId
+                            );
+
+                            const hasKey =
+                              !fbObj?.requiresKey ||
+                              vaultSecrets.some(
+                                (s) =>
+                                  s.category?.toLowerCase() === cat &&
+                                  s.providerId?.toLowerCase() ===
+                                    fbId.toLowerCase()
+                              );
+
+                            return (
+                              <div
+                                key={`${fbId}-${fbIdx}`}
+                                className="flex flex-col gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 sm:flex-row sm:items-center"
+                              >
+                                <div className="flex min-w-0 flex-1 items-center gap-2">
+                                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                    {String(fbIdx + 1).padStart(2, '0')}
+                                  </span>
+
+                                  <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                                      Fallback stage {fbIdx + 1}
+                                    </p>
+                                    <select
+                                      value={fbId}
+                                      onChange={(e) =>
+                                        updateFallbackStep(
+                                          cat,
+                                          fbIdx,
+                                          e.target.value
+                                        )
+                                      }
+                                      className="w-full min-w-0 bg-transparent text-xs font-semibold text-[var(--foreground)] outline-none"
+                                    >
+                                      {catProviders
+                                        .filter(
+                                          (p) =>
+                                            p.id !==
+                                            currentRule.primaryProviderId
+                                        )
+                                        .map((p) => (
+                                          <option
+                                            key={p.id}
+                                            value={p.id}
+                                          >
+                                            {p.name}{' '}
+                                            {p.requiresKey
+                                              ? '(Key Required)'
+                                              : '(Public)'}
+                                          </option>
+                                        ))}
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                                  <StatusPill
+                                    type={hasKey ? 'success' : 'warning'}
+                                  >
+                                    {hasKey ? 'Ready' : 'Key needed'}
+                                  </StatusPill>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      removeFallbackStep(cat, fbIdx)
+                                    }
+                                    className="rounded-lg p-2 text-[var(--muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
+                                    title="Remove fallback"
+                                    aria-label={`Remove fallback stage ${fbIdx + 1}`}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {availableAdditionalFallbacks.length > 0 &&
+                        activeFallbackList.length > 0 && (
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-[10px] text-[var(--muted)]">
+                              {availableAdditionalFallbacks.length} more
+                              provider(s) available
+                            </p>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                addFallbackStep(
+                                  cat,
+                                  availableAdditionalFallbacks[0].id
+                                )
+                              }
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[10px] font-bold text-[var(--foreground)] transition hover:border-emerald-500/40 hover:text-emerald-600"
+                            >
+                              <Plus size={12} className="text-emerald-500" />
+                              Add fallback
+                            </button>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+
+                  {/* Cascade visualization */}
+                  <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <GitBranch
+                          size={15}
+                          className="text-[var(--primary)]"
+                        />
+                        <h4 className="text-xs font-bold text-[var(--foreground)]">
+                          Execution pipeline
+                        </h4>
+                      </div>
+                      <SectionLabel>Request sequence</SectionLabel>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                      {/* Primary node */}
+                      <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-sky-500/25 bg-sky-500/[0.06] p-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-500">
+                          <Zap size={16} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+                            Primary
+                          </p>
+                          <p className="truncate text-xs font-bold text-[var(--foreground)]">
+                            {PROVIDERS_CATALOG.find(
+                              (p) =>
+                                p.id === currentRule.primaryProviderId
+                            )?.name || currentRule.primaryProviderId}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-center text-[var(--muted)]">
+                        <ArrowRight
+                          size={16}
+                          className="rotate-90 sm:rotate-0"
+                        />
+                      </div>
+
+                      {activeFallbackList.length === 0 ? (
+                        <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-dashed border-[var(--border)] bg-[var(--card)] p-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-secondary)] text-[var(--muted)]">
+                            <CircleDot size={16} />
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                              No fallback
+                            </p>
+                            <p className="text-xs font-semibold text-[var(--foreground)]">
+                              Direct-only mode
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+                          {activeFallbackList.map((fbId, idx) => {
+                            const provider = catProviders.find(
+                              (p) => p.id === fbId
+                            );
+
+                            return (
+                              <React.Fragment key={`${fbId}-${idx}`}>
+                                <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] p-3">
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                                    <RotateCcw size={15} />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                      Fallback {idx + 1}
+                                    </p>
+                                    <p className="truncate text-xs font-bold text-[var(--foreground)]">
+                                      {provider?.name || fbId}
+                                    </p>
+                                  </div>
+                                </div>
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <p className="mt-3 text-[10px] leading-5 text-[var(--muted)]">
+                      The configured fallback providers are evaluated in
+                      their displayed order when the gateway's retry
+                      conditions are met.
+                    </p>
+                  </section>
+
+                  {/* Advanced configuration */}
+                  <section className="overflow-hidden rounded-2xl border border-[var(--border)]">
+                    <div className="flex items-center gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+                      <Settings2
+                        size={15}
+                        className="text-[var(--primary)]"
+                      />
+                      <div>
+                        <h4 className="text-xs font-bold text-[var(--foreground)]">
+                          Advanced reliability settings
+                        </h4>
+                        <p className="text-[10px] text-[var(--muted)]">
+                          Tune request timing and retry conditions.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-5 p-4 sm:p-5">
+                      {/* Timeout */}
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                          <div className="rounded-lg bg-[var(--surface-secondary)] p-2 text-[var(--muted)]">
+                            <Clock3 size={16} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-[var(--foreground)]">
+                              Request timeout
+                            </p>
+                            <p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">
+                              Maximum configured waiting duration before
+                              timeout handling.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={1000}
+                            max={60000}
+                            step={500}
+                            value={currentRule.timeoutMs}
+                            onChange={(e) =>
+                              updateRuleField(
+                                cat,
+                                'timeoutMs',
+                                Number(e.target.value)
+                              )
+                            }
+                            className="w-32 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-right font-mono text-xs font-bold text-[var(--foreground)] outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/10"
+                          />
+                          <span className="text-xs text-[var(--muted)]">
+                            ms
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="h-px bg-[var(--border)]" />
+
+                      {/* Retry codes */}
+                      <div>
+                        <div className="mb-3 flex items-start gap-3">
+                          <div className="rounded-lg bg-[var(--surface-secondary)] p-2 text-[var(--muted)]">
+                            <AlertTriangle size={16} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-[var(--foreground)]">
+                              Retry trigger status codes
+                            </p>
+                            <p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">
+                              Select HTTP response codes that should trigger
+                              fallback handling.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {COMMON_STATUS_CODES.map((status) => {
+                            const selected = (
+                              currentRule.retryOnStatusCodes || []
+                            ).includes(status.code);
+
+                            return (
+                              <button
+                                key={status.code}
+                                type="button"
+                                onClick={() =>
+                                  toggleStatusCode(cat, status.code)
+                                }
+                                aria-pressed={selected}
+                                className={`rounded-lg border px-3 py-2 text-[10px] font-semibold transition ${
+                                  selected
+                                    ? 'border-[var(--primary)]/30 bg-[var(--primary)]/10 text-[var(--primary)]'
+                                    : 'border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--foreground)]'
+                                }`}
+                              >
+                                {selected && (
+                                  <Check
+                                    size={10}
+                                    className="mr-1 inline"
+                                  />
+                                )}
+                                {status.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Test results */}
+                  {currentTest && (
+                    <section
+                      className={`overflow-hidden rounded-2xl border ${
+                        currentTest.success
+                          ? 'border-emerald-500/20'
+                          : 'border-rose-500/20'
+                      }`}
+                    >
+                      <div
+                        className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${
+                          currentTest.success
+                            ? 'bg-emerald-500/10'
+                            : 'bg-rose-500/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {currentTest.success ? (
+                            <CheckCircle2
+                              size={16}
+                              className="text-emerald-500"
+                            />
+                          ) : (
+                            <AlertTriangle
+                              size={16}
+                              className="text-rose-500"
+                            />
+                          )}
+                          <p className="text-xs font-bold text-[var(--foreground)]">
+                            Pipeline test{' '}
+                            {currentTest.success ? 'completed' : 'failed'}
+                          </p>
+                        </div>
+
+                        <StatusPill
+                          type={
+                            currentTest.success ? 'success' : 'danger'
+                          }
+                        >
+                          {currentTest.success
+                            ? 'Successful'
+                            : 'Error'}
+                        </StatusPill>
+                      </div>
+
+                      <div className="space-y-3 bg-[var(--card)] p-4">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                          <div className="rounded-xl bg-[var(--surface)] p-3">
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                              Latency
+                            </p>
+                            <p className="mt-1 text-sm font-bold text-[var(--foreground)]">
+                              {currentTest.latencyMs} ms
+                            </p>
+                          </div>
+                          <div className="rounded-xl bg-[var(--surface)] p-3">
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                              Final provider
+                            </p>
+                            <p className="mt-1 truncate text-sm font-bold text-[var(--foreground)]">
+                              {currentTest.finalProvider}
+                            </p>
+                          </div>
+                          <div className="col-span-2 rounded-xl bg-[var(--surface)] p-3 sm:col-span-1">
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                              Fallback triggered
+                            </p>
+                            <p className="mt-1 text-sm font-bold text-[var(--foreground)]">
+                              {currentTest.fallbackTriggered ? 'Yes' : 'No'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                          <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                            Gateway response
+                          </p>
+                          <p className="break-words text-xs leading-5 text-[var(--foreground)]">
+                            {currentTest.summary}
+                          </p>
+                        </div>
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Footer actions */}
+                  <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-[10px] text-[var(--muted)]">
+                      {currentRule.updatedAt ? (
+                        <>
+                          Last updated:{' '}
+                          {new Date(currentRule.updatedAt).toLocaleString()}
+                        </>
+                      ) : (
+                        'Using default routing configuration'
+                      )}
+                    </div>
+
+                    <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        disabled={isTesting}
+                        onClick={() => handleTestPipeline(cat)}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-xs font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-secondary)] disabled:opacity-50"
+                      >
+                        <Play
+                          size={13}
+                          className={
+                            isTesting ? 'animate-pulse text-sky-500' : ''
+                          }
+                        />
+                        {isTesting ? 'Testing pipeline...' : 'Test pipeline'}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() => handleSaveRule(cat)}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isSaving ? (
+                          <>
+                            <RefreshCw
+                              size={13}
+                              className="animate-spin"
+                            />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save size={13} />
+                            Save configuration
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Bottom note */}
+      <div className="flex flex-col gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-2.5">
+          <ShieldCheck
+            size={16}
+            className="mt-0.5 shrink-0 text-[var(--primary)]"
+          />
+          <div>
+            <p className="text-xs font-bold text-[var(--foreground)]">
+              Routing configuration
+            </p>
+            <p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">
+              Review provider credentials in the provider catalog and save
+              your routing changes to apply the configuration.
+            </p>
+          </div>
+        </div>
+
+        <Link
+          href="/dashboard/providers"
+          className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[var(--primary)] hover:underline"
+        >
+          Open provider catalog
+          <ArrowRight size={13} />
+        </Link>
       </div>
     </div>
   );
