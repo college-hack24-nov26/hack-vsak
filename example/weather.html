@@ -419,13 +419,13 @@
 
   <script src="oneapi-sdk.js"></script>
   <script>
-    const baseUrl = localStorage.getItem('oneapi_chat_base_url') || 'http://localhost:5000';
     const apiKey = localStorage.getItem('oneapi_chat_api_key') || localStorage.getItem('oneapi_latest_raw_developer_api_key') || '';
+    const projectId = localStorage.getItem('oneapi_chat_project_id') || localStorage.getItem('oneapi_project_id') || '';
 
-    // Initialize OneAPI SDK
+    // Initialize OneAPI SDK (Gateway endpoint handled automatically)
     const oneapi = new OneAPI({
       apiKey,
-      baseURL: `${baseUrl.replace(/\/$/, '')}/api/v1`,
+      projectId,
     });
 
     const cityInput = document.getElementById('cityInput');

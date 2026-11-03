@@ -2,26 +2,43 @@ import type { Response, NextFunction } from 'express';
 import { VaultSecret, type ProviderCategory } from '../models/VaultSecret.js';
 import { encryptSecret, maskApiKey } from '../utils/vaultCrypto.js';
 import { providerRegistry } from '../providers/registry.js';
-import type { AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import type { ProjectAuthenticatedRequest } from '../middleware/projectOwnership.middleware.js';
 
 /**
  * 1. GET /api/v1/vault
- * Retrieves all encrypted API keys stored in vault by the authenticated developer.
+ * Retrieves all encrypted API keys stored in vault by the authenticated developer for the active project.
  */
 export async function getVaultSecrets(
-  req: AuthenticatedRequest,
+  req: ProjectAuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
     const user = req.user!;
-    const secrets = await VaultSecret.find({ userId: user._id }).select(
-      'category providerId keyPreview metadata updatedAt'
+    const targetProjectId = req.projectId;
+    const isDefault = req.project?.isDefault;
+
+    const filter: Record<string, any> = { userId: user._id };
+    if (targetProjectId) {
+      if (isDefault) {
+        filter.$or = [{ projectId: targetProjectId }, { projectId: { $exists: false } }, { projectId: null }];
+      } else {
+        filter.projectId = targetProjectId;
+      }
+    }
+
+    if (req.query.category) {
+      filter.category = req.query.category;
+    }
+
+    const secrets = await VaultSecret.find(filter).select(
+      'category providerId keyPreview metadata updatedAt projectId'
     );
 
     res.status(200).json({
       success: true,
       data: {
+        projectId: targetProjectId,
         secrets,
         vaultSecrets: secrets,
         count: secrets.length,
@@ -34,23 +51,24 @@ export async function getVaultSecrets(
 
 /**
  * 2. POST /api/v1/vault
- * Encrypts and securely stores or updates a provider API key in the developer's vault.
+ * Encrypts and securely stores or updates a provider API key in the developer's project-scoped vault.
  */
 export async function saveVaultSecret(
-  req: AuthenticatedRequest,
+  req: ProjectAuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
     const user = req.user!;
-    const { category, providerId, apiKey, metadata } = req.body;
+    const targetProjectId = req.projectId!;
+    const { category, providerId, apiKey, metadata, model } = req.body;
 
-    if (!category || !providerId || !apiKey) {
+    if (!category || !providerId) {
       res.status(400).json({
         success: false,
         error: {
           code: 'MISSING_FIELDS',
-          message: 'category, providerId, and apiKey are required fields.',
+          message: 'category and providerId are required fields.',
         },
       });
       return;
@@ -62,6 +80,49 @@ export async function saveVaultSecret(
         error: {
           code: 'INVALID_PROVIDER',
           message: `Provider "${providerId}" is not registered under category "${category}".`,
+        },
+      });
+      return;
+    }
+
+    const existingSecret = await VaultSecret.findOne({
+      userId: user._id,
+      projectId: targetProjectId,
+      category,
+      providerId,
+    }).select('+encryptedCombined');
+
+    const effectiveMetadata = {
+      ...(existingSecret?.metadata || {}),
+      ...(metadata || {}),
+      ...(model ? { model } : {}),
+    };
+
+    // If apiKey is omitted but secret exists and model was supplied, update metadata only
+    if (!apiKey && existingSecret) {
+      existingSecret.metadata = effectiveMetadata;
+      await existingSecret.save();
+      res.status(200).json({
+        success: true,
+        message: `Configuration and model updated for ${providerId} (${category}).`,
+        data: {
+          id: existingSecret._id,
+          projectId: existingSecret.projectId,
+          category: existingSecret.category,
+          providerId: existingSecret.providerId,
+          keyPreview: existingSecret.keyPreview,
+          metadata: existingSecret.metadata,
+        },
+      });
+      return;
+    }
+
+    if (!apiKey) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'MISSING_API_KEY',
+          message: 'apiKey is required to configure a new vault credential.',
         },
       });
       return;
@@ -84,20 +145,21 @@ export async function saveVaultSecret(
     const keyPreview = maskApiKey(trimmedKey);
 
     const secret = await VaultSecret.findOneAndUpdate(
-      { userId: user._id, category, providerId },
+      { userId: user._id, projectId: targetProjectId, category, providerId },
       {
         encryptedCombined,
         keyPreview,
-        metadata: metadata || {},
+        metadata: effectiveMetadata,
       },
       { upsert: true, returnDocument: 'after' }
     );
 
     res.status(200).json({
       success: true,
-      message: `Vault secret for ${providerId} (${category}) safely encrypted and stored.`,
+      message: `Vault secret for ${providerId} (${category}) safely encrypted and stored in project.`,
       data: {
         id: secret._id,
+        projectId: secret.projectId,
         category: secret.category,
         providerId: secret.providerId,
         keyPreview: secret.keyPreview,
@@ -111,19 +173,28 @@ export async function saveVaultSecret(
 
 /**
  * 3. DELETE /api/v1/vault/:providerId
- * Deletes a provider credential from developer's vault.
+ * Deletes a provider credential from developer's project-scoped vault.
  */
 export async function deleteVaultSecret(
-  req: AuthenticatedRequest,
+  req: ProjectAuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
     const user = req.user!;
+    const targetProjectId = req.projectId;
+    const isDefault = req.project?.isDefault;
     const { providerId } = req.params;
     const category = req.query.category as string | undefined;
 
     const query: any = { userId: user._id, providerId };
+    if (targetProjectId) {
+      if (isDefault) {
+        query.$or = [{ projectId: targetProjectId }, { projectId: { $exists: false } }, { projectId: null }];
+      } else {
+        query.projectId = targetProjectId;
+      }
+    }
     if (category) {
       query.category = category;
     }
@@ -134,7 +205,7 @@ export async function deleteVaultSecret(
         success: false,
         error: {
           code: 'SECRET_NOT_FOUND',
-          message: `Vault secret for provider "${providerId}" was not found.`,
+          message: `Vault secret for provider "${providerId}" was not found in this project.`,
         },
       });
       return;

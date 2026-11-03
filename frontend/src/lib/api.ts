@@ -48,6 +48,28 @@ export const authStorage = {
   setApiKey: (key: string) => {
     if (typeof window !== 'undefined') localStorage.setItem('oneapi_developer_key', key);
   },
+  getProjectId: () => (typeof window !== 'undefined' ? localStorage.getItem('oneapi_project_id') : null),
+  setProjectId: (id: string) => {
+    if (typeof window !== 'undefined') localStorage.setItem('oneapi_project_id', id);
+  },
+  getActiveProject: () => {
+    if (typeof window === 'undefined') return null;
+    const p = localStorage.getItem('oneapi_active_project');
+    return p ? JSON.parse(p) : null;
+  },
+  setActiveProject: (p: any) => {
+    if (typeof window !== 'undefined') {
+      if (p) {
+        localStorage.setItem('oneapi_active_project', JSON.stringify(p));
+        if (p._id || p.id) {
+          localStorage.setItem('oneapi_project_id', p._id || p.id);
+        }
+      } else {
+        localStorage.removeItem('oneapi_active_project');
+        localStorage.removeItem('oneapi_project_id');
+      }
+    }
+  },
   clear: () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('oneapi_access_token');
@@ -56,11 +78,12 @@ export const authStorage = {
       localStorage.removeItem('oneapi_developer_key');
       localStorage.removeItem('oneapi_project_token');
       localStorage.removeItem('oneapi_project_id');
+      localStorage.removeItem('oneapi_active_project');
     }
   },
 };
 
-// Generic fetch wrapper with single unified Authorization header
+// Generic fetch wrapper with single unified Authorization header and project scoping
 export async function fetchApi<T = any>(
   path: string,
   options: RequestInit = {}
@@ -68,11 +91,17 @@ export async function fetchApi<T = any>(
   const url = `${API_BASE_URL.replace(/\/$/, '')}${path}`;
   const token = authStorage.getToken();
   const apiKey = authStorage.getApiKey();
+  const projectId = authStorage.getProjectId();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
+
+  // Attach project scope identifier if available and not explicitly provided
+  if (projectId && !headers['x-project-id']) {
+    headers['x-project-id'] = projectId;
+  }
 
   // Single unified authentication header: Bearer token or OneAPI developer key
   if (!headers['Authorization']) {

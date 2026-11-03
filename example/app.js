@@ -5,16 +5,18 @@
  */
 
 const STORAGE_KEYS = {
-  BASE_URL: 'oneapi_chat_base_url',
+  PROJECT_ID: 'oneapi_chat_project_id',
   API_KEY: 'oneapi_chat_api_key',
   SESSIONS: 'oneapi_chat_sessions',
   ACTIVE_SESSION_ID: 'oneapi_chat_active_session',
+  PROVIDER: 'oneapi_chat_selected_provider',
   MODEL: 'oneapi_chat_selected_model',
 };
 
 const DEFAULT_CONFIG = {
   BASE_URL: 'http://localhost:5000',
-  MODEL: 'auto', // 'auto' | 'gemini' | 'groq' | 'openrouter'
+  PROVIDER: 'auto',
+  MODEL: 'auto',
 };
 
 const SUGGESTIONS = [
@@ -42,8 +44,10 @@ const SUGGESTIONS = [
 
 // App State
 const state = {
-  baseUrl: localStorage.getItem(STORAGE_KEYS.BASE_URL) || DEFAULT_CONFIG.BASE_URL,
+  baseUrl: DEFAULT_CONFIG.BASE_URL,
+  projectId: localStorage.getItem(STORAGE_KEYS.PROJECT_ID) || '',
   apiKey: localStorage.getItem(STORAGE_KEYS.API_KEY) || '',
+  selectedProvider: localStorage.getItem(STORAGE_KEYS.PROVIDER) || DEFAULT_CONFIG.PROVIDER,
   selectedModel: localStorage.getItem(STORAGE_KEYS.MODEL) || DEFAULT_CONFIG.MODEL,
   sessions: JSON.parse(localStorage.getItem(STORAGE_KEYS.SESSIONS) || '[]'),
   activeSessionId: localStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION_ID) || null,
@@ -74,7 +78,7 @@ const elements = {
   credentialsPill: document.getElementById('credentialsPill'),
   configModalTrigger: document.getElementById('configModalTrigger'),
   modalCloseBtn: document.getElementById('modalCloseBtn'),
-  baseUrlInput: document.getElementById('baseUrlInput'),
+  projectIdInput: document.getElementById('projectIdInput'),
   apiKeyInput: document.getElementById('apiKeyInput'),
   saveCredentialsBtn: document.getElementById('saveCredentialsBtn'),
   sidebarKeyDisplay: document.getElementById('sidebarKeyDisplay'),
@@ -379,8 +383,18 @@ async function handleSendMessage() {
       headers['Authorization'] = `Bearer ${state.apiKey}`;
     }
 
-    if (state.selectedModel !== 'auto') {
-      headers['x-oneapi-provider'] = state.selectedModel;
+    if (state.projectId) {
+      headers['x-project-id'] = state.projectId;
+    }
+
+    if (state.selectedProvider && state.selectedProvider !== 'auto') {
+      headers['x-oneapi-provider'] = state.selectedProvider;
+      payload.provider = state.selectedProvider;
+    }
+
+    if (state.selectedModel && state.selectedModel !== 'auto') {
+      headers['x-oneapi-model'] = state.selectedModel;
+      payload.model = state.selectedModel;
     }
 
     const response = await fetch(`${state.baseUrl.replace(/\/$/, '')}/api/v1/proxy/ai/chat`, {
@@ -551,9 +565,12 @@ function setupEventListeners() {
   elements.modelDropdownMenu.querySelectorAll('.model-option').forEach((opt) => {
     opt.addEventListener('click', (e) => {
       e.stopPropagation();
-      const p = opt.getAttribute('data-provider');
-      state.selectedModel = p;
-      localStorage.setItem(STORAGE_KEYS.MODEL, p);
+      const p = opt.getAttribute('data-provider') || 'auto';
+      const m = opt.getAttribute('data-model') || 'auto';
+      state.selectedProvider = p;
+      state.selectedModel = m;
+      localStorage.setItem(STORAGE_KEYS.PROVIDER, p);
+      localStorage.setItem(STORAGE_KEYS.MODEL, m);
       updateModelUI();
       elements.modelDropdownMenu.classList.remove('open');
     });
@@ -561,7 +578,7 @@ function setupEventListeners() {
 
   // Credentials Modal
   const openModal = () => {
-    elements.baseUrlInput.value = state.baseUrl;
+    if (elements.projectIdInput) elements.projectIdInput.value = state.projectId;
     elements.apiKeyInput.value = state.apiKey;
     elements.credentialsModal.classList.add('open');
   };
@@ -575,13 +592,13 @@ function setupEventListeners() {
   elements.modalCloseBtn.addEventListener('click', closeModal);
 
   elements.saveCredentialsBtn.addEventListener('click', () => {
-    const newBaseUrl = elements.baseUrlInput.value.trim() || DEFAULT_CONFIG.BASE_URL;
+    const newProjectId = elements.projectIdInput ? elements.projectIdInput.value.trim() : '';
     const newKey = elements.apiKeyInput.value.trim();
 
-    state.baseUrl = newBaseUrl;
+    state.projectId = newProjectId;
     state.apiKey = newKey;
 
-    localStorage.setItem(STORAGE_KEYS.BASE_URL, newBaseUrl);
+    localStorage.setItem(STORAGE_KEYS.PROJECT_ID, newProjectId);
     localStorage.setItem(STORAGE_KEYS.API_KEY, newKey);
 
     updateCredentialsDisplay();
@@ -612,18 +629,32 @@ function updateInputState() {
 }
 
 function updateModelUI() {
-  const names = {
-    auto: 'OneAPI Auto-Failover',
-    gemini: 'Google Gemini 3.5 Flash',
-    groq: 'Groq Llama 3.3 70B',
-    openrouter: 'OpenRouter Llama 3.3',
-  };
+  const options = Array.from(elements.modelDropdownMenu.querySelectorAll('.model-option'));
+  let activeOpt = options.find((opt) => {
+    const p = opt.getAttribute('data-provider') || 'auto';
+    const m = opt.getAttribute('data-model') || 'auto';
+    return (p === state.selectedProvider && m === state.selectedModel) || (p === 'auto' && state.selectedProvider === 'auto' && state.selectedModel === 'auto');
+  });
 
-  elements.currentModelName.textContent = names[state.selectedModel] || 'OneAPI Auto-Failover';
-  elements.activeEngineChip.textContent = names[state.selectedModel] || 'OneAPI Auto-Failover';
+  if (!activeOpt && state.selectedProvider === 'auto') {
+    activeOpt = options[0];
+  }
 
-  elements.modelDropdownMenu.querySelectorAll('.model-option').forEach((opt) => {
-    if (opt.getAttribute('data-provider') === state.selectedModel) {
+  const title = activeOpt ? activeOpt.querySelector('.opt-title')?.textContent?.trim() || 'OneAPI Auto-Failover' : 'OneAPI Auto-Failover';
+  const icon = activeOpt ? activeOpt.querySelector('.opt-icon')?.textContent?.trim() || '⚡' : '⚡';
+
+  elements.currentModelName.textContent = title;
+  const iconSpan = elements.modelDropdownBtn.querySelector('.model-icon');
+  if (iconSpan) iconSpan.textContent = icon;
+  elements.activeEngineChip.textContent = title;
+
+  options.forEach((opt) => {
+    const p = opt.getAttribute('data-provider') || 'auto';
+    const m = opt.getAttribute('data-model') || 'auto';
+    const isSelected =
+      (p === state.selectedProvider && m === state.selectedModel) ||
+      (p === 'auto' && state.selectedProvider === 'auto' && state.selectedModel === 'auto');
+    if (isSelected) {
       opt.classList.add('active');
     } else {
       opt.classList.remove('active');

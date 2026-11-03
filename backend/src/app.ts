@@ -14,6 +14,7 @@ import { authRoutes } from './routes/auth.routes.js';
 import { vaultRoutes } from './routes/vault.routes.js';
 import { routingRoutes } from './routes/routing.routes.js';
 import { dashboardRoutes } from './routes/dashboard.routes.js';
+import { projectRoutes } from './routes/project.routes.js';
 import { proxyRoutes } from './routes/proxy.routes.js';
 import { listAvailableProviders } from './controllers/proxy.controller.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -148,6 +149,7 @@ export function createApp(): Application {
 
   // 11. Mount API Routes
   app.use('/api/v1/auth', authRoutes);
+  app.use('/api/v1/projects', projectRoutes);
   app.use('/api/v1/vault', vaultRoutes);
   app.use('/api/v1/routing', routingRoutes);
   app.use('/api/v1/dashboard', dashboardRoutes);

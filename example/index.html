@@ -129,8 +129,8 @@
             </button>
 
             <div class="model-dropdown-menu" id="modelDropdownMenu">
-              <div class="model-dropdown-header">SELECT ROUTING STRATEGY</div>
-              <button class="model-option active" data-provider="auto">
+              <div class="model-dropdown-header">ROUTING STRATEGY</div>
+              <button class="model-option active" data-provider="auto" data-model="auto">
                 <div class="opt-left">
                   <span class="opt-icon">⚡</span>
                   <div>
@@ -141,34 +141,118 @@
                 <span class="opt-badge">Recommended</span>
               </button>
 
-              <button class="model-option" data-provider="gemini">
+              <div class="model-dropdown-header">GOOGLE GEMINI</div>
+              <button class="model-option" data-provider="gemini" data-model="gemini-2.5-flash">
+                <div class="opt-left">
+                  <span class="opt-icon">⚡</span>
+                  <div>
+                    <div class="opt-title">Gemini 2.5 Flash</div>
+                    <div class="opt-desc">Sub-second latency &bull; Multimodal workhorse</div>
+                  </div>
+                </div>
+                <span class="opt-badge">Default</span>
+              </button>
+              <button class="model-option" data-provider="gemini" data-model="gemini-2.5-pro">
                 <div class="opt-left">
                   <span class="opt-icon">🧠</span>
                   <div>
-                    <div class="opt-title">Google Gemini (3.5 Flash Lite)</div>
-                    <div class="opt-desc">Direct call with sub-second multimodal latency</div>
+                    <div class="opt-title">Gemini 2.5 Pro</div>
+                    <div class="opt-desc">Deep reasoning, complex coding &amp; STEM</div>
                   </div>
                 </div>
+                <span class="opt-badge">Pro</span>
               </button>
-
-              <button class="model-option" data-provider="groq">
+              <button class="model-option" data-provider="gemini" data-model="gemini-2.5-flash-lite">
                 <div class="opt-left">
-                  <span class="opt-icon">🚀</span>
+                  <span class="opt-icon">💨</span>
                   <div>
-                    <div class="opt-title">Groq Cloud (Llama 3.3 70B)</div>
-                    <div class="opt-desc">Direct call through Groq LPU inference engine</div>
+                    <div class="opt-title">Gemini 2.5 Flash Lite</div>
+                    <div class="opt-desc">Ultra-lightweight high-throughput inference</div>
                   </div>
                 </div>
+                <span class="opt-badge">Lite</span>
               </button>
-
-              <button class="model-option" data-provider="openrouter">
+              <button class="model-option" data-provider="gemini" data-model="gemini-1.5-flash">
                 <div class="opt-left">
                   <span class="opt-icon">🌐</span>
                   <div>
-                    <div class="opt-title">OpenRouter (Unified Models)</div>
-                    <div class="opt-desc">Direct call via OpenRouter global multi-model bridge</div>
+                    <div class="opt-title">Gemini 1.5 Flash</div>
+                    <div class="opt-desc">Stable long-context multimodal model</div>
                   </div>
                 </div>
+              </button>
+              <button class="model-option" data-provider="gemini" data-model="gemini-3.5-flash-lite">
+                <div class="opt-left">
+                  <span class="opt-icon">🔬</span>
+                  <div>
+                    <div class="opt-title">Gemini 3.5 Flash Lite (Preview)</div>
+                    <div class="opt-desc">Experimental next-gen preview candidate</div>
+                  </div>
+                </div>
+                <span class="opt-badge">Preview</span>
+              </button>
+
+              <div class="model-dropdown-header">GROQ CLOUD (LPU ENGINE)</div>
+              <button class="model-option" data-provider="groq" data-model="llama-3.3-70b-versatile">
+                <div class="opt-left">
+                  <span class="opt-icon">🚀</span>
+                  <div>
+                    <div class="opt-title">Llama 3.3 70B Versatile</div>
+                    <div class="opt-desc">Ultra-fast Groq LPU inference engine</div>
+                  </div>
+                </div>
+                <span class="opt-badge">Default</span>
+              </button>
+              <button class="model-option" data-provider="groq" data-model="llama-3.1-8b-instant">
+                <div class="opt-left">
+                  <span class="opt-icon">⚡</span>
+                  <div>
+                    <div class="opt-title">Llama 3.1 8B Instant</div>
+                    <div class="opt-desc">Sub-100ms ultra-low latency response</div>
+                  </div>
+                </div>
+                <span class="opt-badge">Instant</span>
+              </button>
+              <button class="model-option" data-provider="groq" data-model="mixtral-8x7b-32768">
+                <div class="opt-left">
+                  <span class="opt-icon">🔀</span>
+                  <div>
+                    <div class="opt-title">Mixtral 8x7B MoE</div>
+                    <div class="opt-desc">High-speed mixture-of-experts model</div>
+                  </div>
+                </div>
+              </button>
+
+              <div class="model-dropdown-header">OPENROUTER MULTI-MODEL</div>
+              <button class="model-option" data-provider="openrouter" data-model="meta-llama/llama-3.3-70b-instruct">
+                <div class="opt-left">
+                  <span class="opt-icon">🦙</span>
+                  <div>
+                    <div class="opt-title">Llama 3.3 70B Instruct</div>
+                    <div class="opt-desc">Direct call via OpenRouter global network</div>
+                  </div>
+                </div>
+                <span class="opt-badge">Default</span>
+              </button>
+              <button class="model-option" data-provider="openrouter" data-model="anthropic/claude-3.5-sonnet">
+                <div class="opt-left">
+                  <span class="opt-icon">🎭</span>
+                  <div>
+                    <div class="opt-title">Claude 3.5 Sonnet</div>
+                    <div class="opt-desc">State-of-the-art coding &amp; instruction following</div>
+                  </div>
+                </div>
+                <span class="opt-badge">Claude</span>
+              </button>
+              <button class="model-option" data-provider="openrouter" data-model="deepseek/deepseek-chat">
+                <div class="opt-left">
+                  <span class="opt-icon">🐋</span>
+                  <div>
+                    <div class="opt-title">DeepSeek V3 Chat</div>
+                    <div class="opt-desc">Advanced reasoning &amp; knowledge retrieval</div>
+                  </div>
+                </div>
+                <span class="opt-badge">DeepSeek</span>
               </button>
             </div>
           </div>
@@ -252,9 +336,9 @@
 
       <div class="modal-body">
         <div class="form-group">
-          <label for="baseUrlInput">Gateway URL</label>
-          <input type="text" id="baseUrlInput" placeholder="http://localhost:5000" />
-          <span class="input-tip">Local OneAPI Express Backend on port 5000</span>
+          <label for="projectIdInput">Project ID (Optional)</label>
+          <input type="text" id="projectIdInput" placeholder="Leave empty for default project" />
+          <span class="input-tip">Scoped project configuration for provider vault & routing</span>
         </div>
 
         <div class="form-group">

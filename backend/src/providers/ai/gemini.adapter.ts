@@ -3,8 +3,21 @@ import type { IProviderAdapter, UnifiedAiRequest, UnifiedAiResponse, ProviderCon
 export class GeminiAiAdapter implements IProviderAdapter<UnifiedAiRequest, UnifiedAiResponse> {
   public readonly id = 'gemini';
   public readonly category = 'ai' as const;
-  public readonly displayName = 'Google Gemini (gemini-3.5-flash-lite)';
+  public readonly displayName = 'Google Gemini (Multimodal)';
   public readonly isKeyRequired = true;
+  public readonly defaultModel = 'gemini-2.5-flash';
+  public readonly supportedModels = [
+    'gemini-2.5-flash',
+    'gemini-2.5-pro',
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-pro',
+    'gemini-3.5-flash-lite',
+    'gemini-3.5-flash',
+    'gemini-3-flash',
+    'gemini-3-pro',
+  ];
 
   public async execute(params: UnifiedAiRequest, config: ProviderConfig): Promise<UnifiedAiResponse> {
     const apiKey = config.apiKey || process.env.GEMINI_API_KEY;
@@ -21,11 +34,13 @@ export class GeminiAiAdapter implements IProviderAdapter<UnifiedAiRequest, Unifi
       parts: [{ text: m.content }],
     }));
 
-    // Dynamic model candidates (gemini-3.5-flash-lite is active, fast, and high-capacity)
-    const userModel = params.model && params.model !== 'default' ? params.model : null;
-    const modelCandidates = userModel
-      ? [userModel, 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-latest']
-      : ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-latest'];
+    // Dynamic model candidates (prioritize selected model, then standard reliable fallbacks)
+    const userModel = params.model && params.model !== 'default' && params.model !== 'auto'
+      ? params.model
+      : (config.metadata?.model || this.defaultModel);
+
+    const fallbackCandidates = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    const modelCandidates = Array.from(new Set([userModel, ...fallbackCandidates]));
 
     let lastError: Error | null = null;
 

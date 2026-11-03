@@ -1,6 +1,6 @@
 export interface OneAPIOptions {
   apiKey?: string;
-  baseURL?: string;
+  projectId?: string;
   timeout?: number;
   defaultHeaders?: Record<string, string>;
 }
@@ -253,6 +253,7 @@ export declare class HealthResource {
 
 export declare class OneAPI {
   apiKey: string;
+  projectId?: string;
   baseURL: string;
   timeout: number;
   ai: AIResource;
@@ -263,6 +264,6 @@ export declare class OneAPI {
   providers: ProvidersResource;
   health: HealthResource;
 
-  constructor(options?: OneAPIOptions);
+  constructor(options?: OneAPIOptions | string, projectId?: string);
   request(path: string, options?: any): Promise<any>;
 }

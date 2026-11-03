@@ -9,24 +9,42 @@ import { OneAPIError } from './errors.js';
 
 export class OneAPI {
   /**
-   * Initializes the OneAPI Gateway client SDK
+   * Initializes the OneAPI Gateway client SDK.
+   * Developers only need to provide their API Key and Project ID.
+   * Gateway routing and baseURL are handled automatically.
    *
-   * @param {Object} [options]
-   * @param {string} [options.apiKey] Developer API key (sk_live_...) or auth token
-   * @param {string} [options.baseURL='http://localhost:5000/api/v1'] Base URL of the OneAPI gateway
+   * @param {Object|string} [options] API key or options object
+   * @param {string} [options.apiKey] OneAPI developer key (sk_live_...)
+   * @param {string} [options.projectId] Project identifier
    * @param {number} [options.timeout=30000] Milliseconds before request times out
    * @param {Record<string, string>} [options.defaultHeaders] Custom headers applied to every request
+   * @param {string} [projectIdArg] Optional project ID if first argument was apiKey string
    */
-  constructor({
-    apiKey,
-    baseURL = 'http://localhost:5000/api/v1',
-    timeout = 30000,
-    defaultHeaders = {},
-  } = {}) {
-    this.apiKey = apiKey || (typeof process !== 'undefined' ? process.env?.ONEAPI_API_KEY : '');
-    this.baseURL = (baseURL || 'http://localhost:5000/api/v1').replace(/\/+$/, '');
+  constructor(options = {}, projectIdArg = '') {
+    let apiKey = '';
+    let projectId = '';
+    let timeout = 30000;
+    let defaultHeaders = {};
+
+    if (typeof options === 'string') {
+      apiKey = options;
+      projectId = projectIdArg || '';
+    } else if (options && typeof options === 'object') {
+      apiKey = options.apiKey || (typeof process !== 'undefined' ? process.env?.ONEAPI_API_KEY : '');
+      projectId = options.projectId || (typeof process !== 'undefined' ? process.env?.ONEAPI_PROJECT_ID : '');
+      timeout = options.timeout || 30000;
+      defaultHeaders = options.defaultHeaders || {};
+    }
+
+    this.apiKey = apiKey || '';
+    this.projectId = projectId || '';
     this.timeout = timeout;
     this.defaultHeaders = defaultHeaders;
+
+    // Base URL is resolved automatically by the SDK without manual configuration
+    const envBase = typeof process !== 'undefined' ? process.env?.ONEAPI_BASE_URL : undefined;
+    const winBase = typeof window !== 'undefined' ? (window.__ONEAPI_BASE_URL__ || '') : '';
+    this.baseURL = (envBase || winBase || 'http://localhost:5000/api/v1').replace(/\/+$/, '');
 
     // Domain Resources
     this.ai = new AIResource(this);
@@ -62,6 +80,11 @@ export class OneAPI {
       if (this.apiKey) {
         requestHeaders['Authorization'] = `Bearer ${this.apiKey}`;
         requestHeaders['x-api-key'] = this.apiKey;
+      }
+
+      // Inject project identifier if bound
+      if (this.projectId && !requestHeaders['x-project-id']) {
+        requestHeaders['x-project-id'] = this.projectId;
       }
 
       if (body !== undefined && !requestHeaders['Content-Type']) {

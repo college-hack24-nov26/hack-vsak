@@ -30,6 +30,7 @@ export class ProxyEngineService {
     preferredProvider,
     ipAddress,
     userAgent,
+    projectId,
   }: {
     user: IUser;
     category: ProviderCategory;
@@ -38,11 +39,18 @@ export class ProxyEngineService {
     preferredProvider?: string;
     ipAddress?: string;
     userAgent?: string;
+    projectId?: any;
   }): Promise<ProxyExecutionResult<TRes>> {
     const startTime = Date.now();
 
-    // 1. Resolve Routing Rule (configured primary and fallback providers for this developer)
-    let rule = await RoutingRule.findOne({ userId: user._id, category });
+    // 1. Resolve Routing Rule (configured primary and fallback providers for this developer and project)
+    let rule = null;
+    if (projectId) {
+      rule = await RoutingRule.findOne({ projectId, category });
+    }
+    if (!rule) {
+      rule = await RoutingRule.findOne({ userId: user._id, category });
+    }
     const defaults = providerRegistry.getDefaultRouting(category);
 
     let primaryId = rule?.primaryProviderId || defaults.primary;
@@ -79,7 +87,7 @@ export class ProxyEngineService {
       throw new Error(`Primary provider "${primaryId}" not found for category "${category}".`);
     }
 
-    const primaryConfig = await this.resolveProviderConfig(user, category, primaryId, timeoutMs);
+    const primaryConfig = await this.resolveProviderConfig(user, category, primaryId, timeoutMs, projectId);
 
     // 3. Smart Direct Fallback Cascade:
     // If primary provider requires an API key that is not configured, find the first available fallback that is ready
@@ -90,7 +98,7 @@ export class ProxyEngineService {
         const fbAdapter = providerRegistry.get(category, fbId);
         if (!fbAdapter) continue;
 
-        const fbConfig = await this.resolveProviderConfig(user, category, fbId, timeoutMs);
+        const fbConfig = await this.resolveProviderConfig(user, category, fbId, timeoutMs, projectId);
         const isReady = !fbAdapter.isKeyRequired || Boolean(fbConfig.apiKey);
 
         if (isReady) {
@@ -98,11 +106,13 @@ export class ProxyEngineService {
             `[ProxyEngine] ⚡ Primary "${primaryId}" has no key configured, but fallback "${fbId}" is ready. Calling "${fbAdapter.displayName}"...`
           );
 
-          const fallbackData = await fbAdapter.execute(params, fbConfig);
+          const fbParams = this.resolveModelForProvider(category, fbId, params, fbConfig, rule, fbAdapter);
+          const fallbackData = await fbAdapter.execute(fbParams, fbConfig);
           const totalLatencyMs = Date.now() - startTime;
 
           await this.logTelemetry({
             userId: user._id,
+            projectId,
             category,
             endpoint,
             primaryProvider: primaryId,
@@ -132,12 +142,14 @@ export class ProxyEngineService {
 
     // 4. Attempt Primary Execution
     try {
-      const data = await primaryAdapter.execute(params, primaryConfig);
+      const primaryParams = this.resolveModelForProvider(category, primaryId, params, primaryConfig, rule, primaryAdapter);
+      const data = await primaryAdapter.execute(primaryParams, primaryConfig);
       const latencyMs = Date.now() - startTime;
 
       // Log successful telemetry
       await this.logTelemetry({
         userId: user._id,
+        projectId,
         category,
         endpoint,
         primaryProvider: primaryId,
@@ -189,7 +201,7 @@ export class ProxyEngineService {
         const candidateAdapter = providerRegistry.get(category, candidateId);
         if (!candidateAdapter) continue;
 
-        const candidateConfig = await this.resolveProviderConfig(user, category, candidateId, timeoutMs);
+        const candidateConfig = await this.resolveProviderConfig(user, category, candidateId, timeoutMs, projectId);
         if (candidateAdapter.isKeyRequired && !candidateConfig.apiKey) {
           console.log(`[ProxyEngine] Skipping fallback "${candidateId}" (requires key that is not in vault).`);
           continue;
@@ -200,11 +212,13 @@ export class ProxyEngineService {
         );
 
         try {
-          const fallbackData = await candidateAdapter.execute(params, candidateConfig);
+          const candidateParams = this.resolveModelForProvider(category, candidateId, params, candidateConfig, rule, candidateAdapter);
+          const fallbackData = await candidateAdapter.execute(candidateParams, candidateConfig);
           const totalLatencyMs = Date.now() - startTime;
 
           await this.logTelemetry({
             userId: user._id,
+            projectId,
             category,
             endpoint,
             primaryProvider: primaryId,
@@ -242,6 +256,7 @@ export class ProxyEngineService {
 
       await this.logTelemetry({
         userId: user._id,
+        projectId,
         category,
         endpoint,
         primaryProvider: primaryId,
@@ -265,13 +280,25 @@ export class ProxyEngineService {
     user: IUser,
     category: ProviderCategory,
     providerId: string,
-    timeoutMs: number
+    timeoutMs: number,
+    projectId?: any
   ): Promise<ProviderConfig> {
-    const secret = await VaultSecret.findOne({
-      userId: user._id,
-      category,
-      providerId,
-    }).select('+encryptedCombined');
+    let secret = null;
+    if (projectId) {
+      secret = await VaultSecret.findOne({
+        projectId,
+        category,
+        providerId,
+      }).select('+encryptedCombined');
+    }
+
+    if (!secret) {
+      secret = await VaultSecret.findOne({
+        userId: user._id,
+        category,
+        providerId,
+      }).select('+encryptedCombined');
+    }
 
     let apiKey: string | undefined;
     if (secret?.encryptedCombined) {
@@ -287,6 +314,30 @@ export class ProxyEngineService {
       metadata: secret?.metadata,
       timeoutMs,
     };
+  }
+
+  /**
+   * Resolves the effective model parameter for AI providers.
+   */
+  private resolveModelForProvider(
+    category: ProviderCategory,
+    providerId: string,
+    params: any,
+    config: ProviderConfig,
+    rule: any,
+    adapter: any
+  ): any {
+    if (category !== 'ai') return params;
+    const requestedModel = params?.model;
+    if (requestedModel && requestedModel !== 'default' && requestedModel !== 'auto') {
+      return params;
+    }
+    const resolvedModel =
+      rule?.models?.[providerId] ||
+      config.metadata?.model ||
+      adapter?.defaultModel ||
+      'default';
+    return { ...params, model: resolvedModel };
   }
 
   /**

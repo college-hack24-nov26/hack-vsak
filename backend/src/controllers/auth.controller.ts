@@ -2,6 +2,10 @@ import type { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { User } from '../models/User.js';
 import { ApiKey } from '../models/ApiKey.js';
+import { Project, getOrCreateDefaultProject } from '../models/Project.js';
+import { VaultSecret } from '../models/VaultSecret.js';
+import { RoutingRule } from '../models/RoutingRule.js';
+import { GatewayLog } from '../models/GatewayLog.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { generateNumericOtp, hashToken, generateApiKey, safeCompare } from '../utils/crypto.js';
 import { encryptSecret, decryptSecret } from '../utils/vaultCrypto.js';
@@ -635,10 +639,47 @@ export async function createApiKeyHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { name, expiresInDays, scopes } = req.body;
+    const { name, expiresInDays, scopes, projectId } = req.body;
     const user = req.user!;
     const ipAddress = getClientIp(req);
     const userAgent = getClientUserAgent(req);
+
+    // Resolve projectId: body, header, query, or fallback to user's default project
+    const rawProjectId = projectId || (req.headers['x-project-id'] as string) || (req.query.projectId as string);
+    let resolvedProjectId: mongoose.Types.ObjectId;
+
+    if (rawProjectId && rawProjectId !== 'default') {
+      if (!mongoose.Types.ObjectId.isValid(rawProjectId)) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_PROJECT_ID',
+            message: `The provided projectId "${rawProjectId}" is not a valid 24-character identifier.`,
+          },
+        });
+        return;
+      }
+
+      const project = await Project.findOne({
+        _id: new mongoose.Types.ObjectId(rawProjectId),
+        userId: user._id,
+      });
+
+      if (!project) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'FORBIDDEN_PROJECT_ACCESS',
+            message: 'Access denied: The requested project does not exist or does not belong to the authenticated user.',
+          },
+        });
+        return;
+      }
+      resolvedProjectId = project._id;
+    } else {
+      const defaultProj = await getOrCreateDefaultProject(user._id);
+      resolvedProjectId = defaultProj._id;
+    }
 
     const { rawKey, keyPrefix, keyHash } = generateApiKey();
     const encryptedKey = encryptSecret(rawKey).combined;
@@ -650,6 +691,7 @@ export async function createApiKeyHandler(
     // 1. Create document in dedicated ApiKey model
     const apiKeyDoc = await ApiKey.create({
       userId: user._id,
+      projectId: resolvedProjectId,
       name: name?.trim() || 'Production Key',
       keyPrefix,
       keyHash,
@@ -688,7 +730,7 @@ export async function createApiKeyHandler(
       ipAddress,
       userAgent,
       status: 'SUCCESS',
-      details: { keyId: apiKeyDoc._id, keyName: apiKeyDoc.name, keyPrefix, user_id: user.user_id },
+      details: { keyId: apiKeyDoc._id, keyName: apiKeyDoc.name, keyPrefix, user_id: user.user_id, projectId: resolvedProjectId },
     });
 
     res.status(201).json({
@@ -699,6 +741,7 @@ export async function createApiKeyHandler(
         rawApiKey: rawKey,
         fullKey: rawKey,
         keyId: apiKeyDoc._id,
+        projectId: resolvedProjectId,
         keyPrefix,
         name: apiKeyDoc.name,
         scopes: apiKeyDoc.scopes,
@@ -721,20 +764,30 @@ export async function createApiKeyHandler(
 export async function listApiKeys(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const user = req.user!;
+    const rawProjectId = (req.query.projectId as string) || (req.headers['x-project-id'] as string);
+
+    const filter: Record<string, any> = { userId: user._id };
+    if (rawProjectId && rawProjectId !== 'all') {
+      if (mongoose.Types.ObjectId.isValid(rawProjectId)) {
+        filter.projectId = new mongoose.Types.ObjectId(rawProjectId);
+      }
+    }
 
     // 1. Query dedicated ApiKey model
-    let dbKeys = await ApiKey.find({ userId: user._id })
+    let dbKeys = await ApiKey.find(filter)
       .select('+encryptedKey')
       .sort({ createdAt: -1 });
 
     // 2. Auto-migration check: If ApiKey model is empty but legacy user.apiKeys has items, migrate them
-    if (dbKeys.length === 0 && user.apiKeys && user.apiKeys.length > 0) {
+    if (dbKeys.length === 0 && (!rawProjectId || rawProjectId === 'all') && user.apiKeys && user.apiKeys.length > 0) {
+      const defaultProj = await getOrCreateDefaultProject(user._id);
       const fullUser = await User.findById(user._id).select('+apiKeys.encryptedKey +apiKeys.keyHash');
       if (fullUser?.apiKeys && fullUser.apiKeys.length > 0) {
         for (const legacyKey of fullUser.apiKeys) {
           try {
             const created = await ApiKey.create({
               userId: user._id,
+              projectId: defaultProj._id,
               name: legacyKey.name,
               keyPrefix: legacyKey.keyPrefix,
               keyHash: legacyKey.keyHash,
@@ -762,6 +815,7 @@ export async function listApiKeys(req: AuthenticatedRequest, res: Response, next
       }
       return {
         _id: k._id,
+        projectId: k.projectId,
         name: k.name,
         keyPrefix: k.keyPrefix,
         fullKey: fullKey || k.keyPrefix,
@@ -830,6 +884,7 @@ export async function getApiKeyById(req: AuthenticatedRequest, res: Response, ne
       data: {
         apiKey: {
           _id: keyDoc._id,
+          projectId: (keyDoc as any).projectId,
           name: keyDoc.name,
           keyPrefix: keyDoc.keyPrefix,
           fullKey: fullKey || keyDoc.keyPrefix,
@@ -1215,6 +1270,93 @@ export async function changePassword(
     res.status(200).json({
       success: true,
       message: 'Password successfully updated.',
+    });
+  } catch (err: any) {
+    next(err);
+  }
+}
+
+/**
+ * 15. Update Profile for Authenticated User
+ * PUT /api/v1/auth/profile
+ * Allows updating name and phone_no. Email is strictly read-only.
+ */
+export async function updateProfile(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const user = req.user!;
+    const { name, phone_no } = req.body;
+
+    if (name && typeof name === 'string') {
+      user.name = name.trim();
+    }
+    if (phone_no && typeof phone_no === 'string') {
+      user.phone_no = phone_no.trim();
+    }
+
+    await user.save();
+
+    await AuditLog.create({
+      action: 'PROFILE_UPDATED',
+      userId: user._id,
+      userEmail: user.email,
+      ipAddress: req.ip || '',
+      userAgent: (req.headers['user-agent'] as string) || '',
+      status: 'SUCCESS',
+      details: { name: user.name, phone_no: user.phone_no },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully.',
+      data: {
+        user: {
+          id: user._id,
+          user_id: user.user_id,
+          name: user.name,
+          email: user.email,
+          phone_no: user.phone_no,
+          role: user.role,
+          isVerified: user.isVerified,
+        },
+      },
+    });
+  } catch (err: any) {
+    next(err);
+  }
+}
+
+/**
+ * 16. Delete User Account with Complete Cascade
+ * DELETE /api/v1/auth/account
+ * Cascades deletion across all projects, API keys, vault secrets, routing rules, and gateway logs.
+ */
+export async function deleteAccount(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const user = req.user!;
+    const userId = user._id;
+
+    // Cascade deletion of all user-owned data
+    await Promise.all([
+      Project.deleteMany({ userId }),
+      ApiKey.deleteMany({ userId }),
+      VaultSecret.deleteMany({ userId }),
+      RoutingRule.deleteMany({ userId }),
+      GatewayLog.deleteMany({ userId }),
+      AuditLog.deleteMany({ userId }),
+      User.deleteOne({ _id: userId }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: 'Your account and all associated projects, credentials, and telemetry logs were permanently deleted.',
     });
   } catch (err: any) {
     next(err);
