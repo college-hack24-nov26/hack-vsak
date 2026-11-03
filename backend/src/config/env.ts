@@ -18,6 +18,8 @@ export const env = {
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   // Allow any IP/origin for development/testing as requested
   CORS_ORIGIN: process.env.CORS_ORIGIN || '*',
+  // Vault AES-256-GCM Master Encryption Key
+  VAULT_MASTER_KEY: process.env.VAULT_MASTER_KEY || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
   EMAIL: {
     FROM: process.env.EMAIL_FROM || 'HackVsak Security <no-reply@hackvsak.com>',
     SMTP_HOST: process.env.SMTP_HOST || '',

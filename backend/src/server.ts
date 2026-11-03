@@ -1,24 +1,30 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { connectDb, disconnectDb } from './config/db.js';
+import { initProviders } from './providers/index.js';
 
 async function bootstrap() {
   console.log('------------------------------------------------------');
-  console.log('🚀 Starting HackVsak Backend API Server...');
+  console.log('🚀 Starting OneAPI Backend Gateway Server...');
   console.log(`Environment: ${env.NODE_ENV}`);
   console.log('------------------------------------------------------');
 
   // 1. Establish MongoDB connection first
   await connectDb();
 
-  // 2. Initialize Express application
+  // 2. Initialize and register providers across all 5 categories
+  initProviders();
+
+  // 3. Initialize Express application
   const app = createApp();
 
-  // 3. Start HTTP server
+  // 4. Start HTTP server
   const server = app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`\n✅ Server is live and listening on http://0.0.0.0:${env.PORT}`);
     console.log(`📍 Health Check:        http://localhost:${env.PORT}/health`);
     console.log(`📍 Auth Routes Base:    http://localhost:${env.PORT}/api/v1/auth`);
+    console.log(`📍 Projects Base:       http://localhost:${env.PORT}/api/v1/projects`);
+    console.log(`📍 Gateway Proxy Base:  http://localhost:${env.PORT}/api/v1/proxy`);
     console.log(`🔒 CORS Origin Policy:  All IPs allowed (${env.CORS_ORIGIN})`);
     console.log('------------------------------------------------------\n');
   });

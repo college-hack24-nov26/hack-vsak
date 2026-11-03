@@ -9,6 +9,8 @@ import hpp from 'hpp';
 import { env } from './config/env.js';
 import { checkDbHealth } from './config/db.js';
 import { authRoutes } from './routes/auth.routes.js';
+import { projectRoutes } from './routes/project.routes.js';
+import { proxyRoutes } from './routes/proxy.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { generalLimiter } from './middleware/rateLimiter.js';
 
@@ -68,6 +70,8 @@ export function createApp(): Application {
       routes: {
         health: '/health',
         auth: '/api/v1/auth',
+        projects: '/api/v1/projects',
+        proxy: '/api/v1/proxy',
       },
     });
   });
@@ -85,8 +89,10 @@ export function createApp(): Application {
     });
   });
 
-  // 10. Mount Auth Routes at /api/v1/auth
+  // 10. Mount API Routes
   app.use('/api/v1/auth', authRoutes);
+  app.use('/api/v1/projects', projectRoutes);
+  app.use('/api/v1/proxy', proxyRoutes);
 
   // 11. 404 Route Not Found Handler
   app.use((req: Request, res: Response) => {
@@ -95,6 +101,13 @@ export function createApp(): Application {
       error: {
         code: 'ROUTE_NOT_FOUND',
         message: `Cannot ${req.method} ${req.originalUrl}. Route does not exist on this server.`,
+        availableEndpoints: {
+          root: '/',
+          health: '/health',
+          auth: '/api/v1/auth',
+          projects: '/api/v1/projects',
+          proxy: '/api/v1/proxy',
+        },
       },
     });
   });

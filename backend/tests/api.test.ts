@@ -43,6 +43,33 @@ describe('4. Express API, CORS & API Key Validation Integration Tests', () => {
     }
   });
 
+  it('GET /api/v1/auth/login should return 200 with interactive route guide when visited in browser', async () => {
+    const res = await fetch(`${baseUrl}/api/v1/auth/login`);
+    assert.equal(res.status, 200);
+    const data = await res.json() as any;
+    assert.equal(data.success, true);
+    assert.equal(data.endpoint, '/api/v1/auth/login');
+    assert.equal(data.method, 'POST');
+    assert.ok(data.exampleBody);
+  });
+
+  it('GET /api/v1/auth should return 200 with complete catalog of auth routes', async () => {
+    const res = await fetch(`${baseUrl}/api/v1/auth`);
+    assert.equal(res.status, 200);
+    const data = await res.json() as any;
+    assert.ok(Array.isArray(data.routes));
+    assert.ok(data.routes.length >= 10);
+  });
+
+  it('GET /api/v1/proxy/ai/chat should return 200 with route guide when visited in browser', async () => {
+    const res = await fetch(`${baseUrl}/api/v1/proxy/ai/chat`);
+    assert.equal(res.status, 200);
+    const data = await res.json() as any;
+    assert.equal(data.success, true);
+    assert.equal(data.endpoint, '/api/v1/proxy/ai/chat');
+    assert.equal(data.method, 'POST');
+  });
+
   it('POST /api/v1/auth/signup should reject if phone_no or terms_accepted are missing', async () => {
     const res = await fetch(`${baseUrl}/api/v1/auth/signup`, {
       method: 'POST',
@@ -130,6 +157,26 @@ describe('4. Express API, CORS & API Key Validation Integration Tests', () => {
     const data = await res.json() as any;
     assert.equal(data.success, false);
     assert.equal(data.error.code, 'INVALID_TOKEN');
+  });
+
+  it('GET /api/v1/proxy/providers should list all categories and demo providers', async () => {
+    const res = await fetch(`${baseUrl}/api/v1/proxy/providers`);
+    assert.equal(res.status, 200);
+    const data = await res.json() as any;
+    assert.equal(data.success, true);
+    assert.ok(Array.isArray(data.data.categories));
+    assert.equal(data.data.categories.length, 5);
+  });
+
+  it('POST /api/v1/proxy/ai/chat should reject requests without project token (401)', async () => {
+    const res = await fetch(`${baseUrl}/api/v1/proxy/ai/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'Hello' }] }),
+    });
+    assert.equal(res.status, 401);
+    const data = await res.json() as any;
+    assert.equal(data.error.code, 'MISSING_PROJECT_TOKEN');
   });
 
   it('GET /health returns health info', async () => {
