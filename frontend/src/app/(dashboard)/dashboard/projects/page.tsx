@@ -277,9 +277,9 @@ export default function ProjectsPortalPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredProjects.map((project) => (
+          {filteredProjects.map((project,i) => (
             <div
-              key={project._id}
+              key={i}
               onClick={() => handleSelectProject(project)}
               className="group p-6 rounded-2xl bg-[#0f172a]/70 hover:bg-[#111c38]/90 border border-slate-800/80 hover:border-sky-500/40 shadow-lg hover:shadow-sky-500/5 transition-all duration-200 cursor-pointer flex flex-col justify-between relative overflow-hidden"
             >

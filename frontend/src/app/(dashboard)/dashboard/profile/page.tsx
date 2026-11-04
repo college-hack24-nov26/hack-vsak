@@ -4,18 +4,18 @@
 import React, { useEffect, useState } from 'react';
 import {
   UserCircle,
+  CheckCircle2,
+  Database,
   Mail,
   Phone,
   Shield,
+  Calendar,
   Key,
   UserRound,
   ShieldCheck,
   Clock3,
+  BadgeCheck,
   AlertCircle,
-  CheckCircle2,
-  CalendarDays,
-  Loader2,
-  RefreshCw,
 } from 'lucide-react';
 import { authStorage, fetchApi } from '@/lib/api';
 
@@ -30,13 +30,6 @@ interface ProfileUser {
   terms_accepted?: boolean;
   createdAt?: string;
 }
-
-const detailItems = [
-  { label: 'Developer User ID', icon: Key, key: 'id' },
-  { label: 'Email Address', icon: Mail, key: 'email' },
-  { label: 'Phone Number', icon: Phone, key: 'phone' },
-  { label: 'Account Created', icon: CalendarDays, key: 'created' },
-] as const;
 
 export default function ProfilePage() {
   const [user, setUser] = useState<ProfileUser | null>(null);
@@ -56,19 +49,16 @@ export default function ProfilePage() {
           setUser(res.data.user);
           authStorage.setUser(res.data.user);
         } else {
-          setError(
-            res.error?.message ||
-            'Unable to retrieve your profile information.'
-          );
+          setError('Unable to retrieve your profile information.');
         }
       })
-      .catch((err: any) => {
+      .catch((err) => {
         console.error('Failed to load profile:', err);
-        setError(
-          err.message || 'Unable to connect to the account service.'
-        );
+        setError('Unable to connect to the account service.');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   const initials = user?.name
@@ -89,185 +79,147 @@ export default function ProfilePage() {
       })
     : 'Not available';
 
-  const details: Record<string, string> = {
-    id: user?.user_id || user?._id || 'Not available',
-    email: user?.email || 'Not available',
-    phone: user?.phone_no || 'Not available',
-    created: accountCreated,
-  };
-
-  const securityItems = [
+  const profileDetails = [
     {
-      label: 'Terms & Conditions',
-      value: user?.terms_accepted ? 'Accepted' : 'Pending',
-      success: !!user?.terms_accepted,
-      icon: Shield,
+      label: 'Developer User ID',
+      value: user?.user_id || user?._id || 'Not available',
+      icon: Key,
+      type: 'code',
     },
     {
-      label: 'Email Verification',
-      value: user?.isVerified ? 'Verified' : 'Pending',
-      success: !!user?.isVerified,
+      label: 'Email Address',
+      value: user?.email || 'Not available',
       icon: Mail,
+      type: 'normal',
     },
     {
-      label: 'Account Registration',
+      label: 'Phone Number',
+      value: user?.phone_no || 'Not available',
+      icon: Phone,
+      type: 'normal',
+    },
+    {
+      label: 'Account Created',
       value: accountCreated,
-      success: !!user?.createdAt,
-      icon: Clock3,
+      icon: Calendar,
+      type: 'normal',
     },
   ];
 
   if (loading && !user) {
     return (
-      <div className="flex min-h-72 flex-col items-center justify-center gap-4 text-[var(--muted)]">
-        <div className="flex size-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-secondary)]">
-          <Loader2
-            size={26}
-            className="animate-spin text-[var(--primary)]"
-          />
+      <div className="profile-loading">
+        <div className="profile-loading-icon">
+          <UserCircle size={28} />
         </div>
-        <div className="text-center">
-          <p className="text-sm font-semibold text-[var(--foreground)]">
-            Loading your profile
-          </p>
-          <p className="mt-1 text-xs">
-            Retrieving your account information...
-          </p>
-        </div>
+        <p>Loading your profile...</p>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 pb-10 text-[var(--foreground)]">
+    <div className="profile-page">
 
-      {/* Page Header */}
-      <div className="flex items-center justify-between gap-4">
+      {/* Page heading */}
+      <div className="profile-page-heading">
         <div>
-          <span className="text-[10px] font-bold tracking-[0.18em] text-[var(--primary)]">
-            ACCOUNT MANAGEMENT
-          </span>
-
-          <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
-            My Profile
-          </h1>
-
-          <p className="mt-1.5 text-sm text-[var(--muted)]">
-            Manage and review your OneAPI developer account information.
-          </p>
+          <span className="profile-eyebrow">ACCOUNT MANAGEMENT</span>
+          <h2>My Profile</h2>
+          <p>Manage and review your OneAPI developer account information.</p>
         </div>
 
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-secondary)] text-[var(--primary)]">
+        <div className="profile-heading-icon">
           <UserRound size={22} />
         </div>
       </div>
 
-      {/* Error Message */}
       {error && (
-        <div
-          role="alert"
-          className="flex items-start gap-3 rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 p-4 text-sm text-[var(--danger)]"
-        >
-          <AlertCircle size={18} className="mt-0.5 shrink-0" />
-          <span className="flex-1">{error}</span>
+        <div className="profile-error">
+          <AlertCircle size={17} />
+          <span>{error}</span>
         </div>
       )}
 
-      {/* Profile Overview */}
-      <section className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow)] sm:p-7">
-        <div className="pointer-events-none absolute -right-16 -top-24 size-64 rounded-full bg-[var(--primary)]/10 blur-3xl" />
+      {/* Profile overview */}
+      <section className="profile-card profile-overview">
+        <div className="profile-overview-main">
+          <div className="profile-avatar">
+            {initials}
+          </div>
 
-        <div className="relative flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
-          <div className="flex min-w-0 items-center gap-4 sm:gap-5">
-            <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary)] text-xl font-extrabold text-white shadow-lg sm:size-20 sm:text-2xl">
-              {initials}
-            </div>
+          <div className="profile-identity">
+            <span className="profile-section-label">
+              DEVELOPER ACCOUNT
+            </span>
 
-            <div className="min-w-0">
-              <span className="text-[9px] font-bold tracking-widest text-[var(--muted)]">
-                DEVELOPER ACCOUNT
+            <h3>{user?.name || 'Developer'}</h3>
+
+            <p>{user?.email || 'No email available'}</p>
+
+            <div className="profile-badges">
+              <span className="profile-role-badge">
+                <UserCircle size={13} />
+                {user?.role || 'USER'}
               </span>
 
-              <h2 className="mt-1 truncate text-xl font-extrabold sm:text-2xl">
-                {user?.name || 'Developer'}
-              </h2>
-
-              <p className="mt-1 break-all text-xs text-[var(--muted)]">
-                {user?.email || 'No email available'}
-              </p>
-
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-secondary)] px-2.5 py-1 text-[9px] font-bold uppercase text-[var(--primary)]">
-                  <UserCircle size={12} />
-                  {user?.role || 'USER'}
+              {user?.isVerified ? (
+                <span className="profile-verified-badge">
+                  <CheckCircle2 size={13} />
+                  Email Verified
                 </span>
-
-                {user?.isVerified ? (
-                  <span className="inline-flex items-center gap-1 rounded-md bg-[var(--success)]/10 px-2.5 py-1 text-[9px] font-bold text-[var(--success)]">
-                    <CheckCircle2 size={12} />
-                    Email Verified
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 rounded-md bg-[var(--accent-yellow)]/10 px-2.5 py-1 text-[9px] font-bold text-[var(--accent-yellow)]">
-                    <AlertCircle size={12} />
-                    Verification Pending
-                  </span>
-                )}
-              </div>
+              ) : (
+                <span className="profile-pending-badge">
+                  <AlertCircle size={13} />
+                  Verification Pending
+                </span>
+              )}
             </div>
           </div>
+        </div>
 
-          <div className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-secondary)] px-3 py-2 text-[10px] font-semibold text-[var(--muted)]">
-            <ShieldCheck size={14} className="text-[var(--success)]" />
-            OneAPI Developer
-          </div>
+        <div className="profile-account-status">
+          <span className="profile-status-dot" />
+          <span>Account Active</span>
         </div>
       </section>
 
-      {/* Personal Information */}
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow)] sm:p-6">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      {/* Account information */}
+      <section className="profile-section">
+        <div className="profile-section-heading">
           <div>
-            <h3 className="text-sm font-extrabold">
-              Personal Information
-            </h3>
-            <p className="mt-1 text-[11px] text-[var(--muted)]">
-              Your registered account details.
-            </p>
+            <h3>Personal Information</h3>
+            <p>Your registered account details.</p>
           </div>
 
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-secondary)] px-2.5 py-1.5 text-[9px] font-semibold text-[var(--muted)]">
+          <span className="profile-section-tag">
             <ShieldCheck size={13} />
             Account Details
           </span>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {detailItems.map((item) => {
+        <div className="profile-details-grid">
+          {profileDetails.map((item) => {
             const Icon = item.icon;
 
             return (
-              <div
-                key={item.key}
-                className="group flex min-w-0 items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 transition-all hover:-translate-y-0.5 hover:border-[var(--primary)]"
-              >
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-secondary)] text-[var(--primary)] transition-colors group-hover:bg-[var(--primary)]/10">
+              <div className="profile-detail-card" key={item.label}>
+                <div className="profile-detail-icon">
                   <Icon size={18} />
                 </div>
 
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-medium text-[var(--muted)]">
+                <div className="profile-detail-content">
+                  <span className="profile-detail-label">
                     {item.label}
-                  </p>
+                  </span>
 
-                  <p
-                    className={`mt-1 break-all text-xs font-bold ${
-                      item.key === 'id' ? 'font-mono' : ''
+                  <span
+                    className={`profile-detail-value ${
+                      item.type === 'code' ? 'is-code' : ''
                     }`}
-                    title={details[item.key]}
+                    title={item.value}
                   >
-                    {details[item.key]}
-                  </p>
+                    {item.value}
+                  </span>
                 </div>
               </div>
             );
@@ -275,74 +227,92 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      {/* Account Security */}
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow)] sm:p-6">
-        <div className="mb-5">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={18} className="text-[var(--primary)]" />
-            <h3 className="text-sm font-extrabold">
-              Account & Security
-            </h3>
+      {/* Account security */}
+      <section className="profile-section">
+        <div className="profile-section-heading">
+          <div>
+            <h3>Account & Security</h3>
+            <p>Verification and account compliance status.</p>
           </div>
-
-          <p className="mt-1 text-[11px] text-[var(--muted)]">
-            Verification and account compliance status.
-          </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {securityItems.map((item) => {
-            const Icon = item.icon;
+        <div className="profile-security-grid">
+          <div className="profile-security-card">
+            <div className="profile-security-icon">
+              <Shield size={19} />
+            </div>
 
-            return (
-              <div
-                key={item.label}
-                className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4"
-              >
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-secondary)] text-[var(--primary)]">
-                  <Icon size={18} />
-                </div>
+            <div className="profile-security-content">
+              <span>Terms & Conditions</span>
+              <strong className={
+                user?.terms_accepted ? 'is-success' : 'is-warning'
+              }>
+                {user?.terms_accepted ? 'Accepted' : 'Pending'}
+              </strong>
+            </div>
 
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] text-[var(--muted)]">
-                    {item.label}
-                  </p>
+            {user?.terms_accepted ? (
+              <CheckCircle2 className="profile-security-check" size={19} />
+            ) : (
+              <AlertCircle className="profile-security-warning" size={19} />
+            )}
+          </div>
 
-                  <p
-                    className={`mt-1 break-words text-xs font-bold ${
-                      item.success
-                        ? 'text-[var(--success)]'
-                        : 'text-[var(--accent-yellow)]'
-                    }`}
-                  >
-                    {item.value}
-                  </p>
-                </div>
+          <div className="profile-security-card">
+            <div className="profile-security-icon">
+              <Mail size={19} />
+            </div>
 
-                {item.success ? (
-                  <CheckCircle2
-                    size={18}
-                    className="shrink-0 text-[var(--success)]"
-                  />
-                ) : (
-                  <AlertCircle
-                    size={18}
-                    className="shrink-0 text-[var(--accent-yellow)]"
-                  />
-                )}
-              </div>
-            );
-          })}
+            <div className="profile-security-content">
+              <span>Email Verification</span>
+              <strong className={
+                user?.isVerified ? 'is-success' : 'is-warning'
+              }>
+                {user?.isVerified ? 'Verified' : 'Pending'}
+              </strong>
+            </div>
+
+            {user?.isVerified ? (
+              <CheckCircle2 className="profile-security-check" size={19} />
+            ) : (
+              <AlertCircle className="profile-security-warning" size={19} />
+            )}
+          </div>
+
+          <div className="profile-security-card">
+            <div className="profile-security-icon">
+              <Database size={19} />
+            </div>
+
+            <div className="profile-security-content">
+              <span>Database Connection</span>
+              <strong className="is-success">Connected</strong>
+            </div>
+
+            <CheckCircle2 className="profile-security-check" size={19} />
+          </div>
+
+          <div className="profile-security-card">
+            <div className="profile-security-icon">
+              <Clock3 size={19} />
+            </div>
+
+            <div className="profile-security-content">
+              <span>Account Registration</span>
+              <strong>{accountCreated}</strong>
+            </div>
+
+            <BadgeCheck className="profile-security-check" size={19} />
+          </div>
         </div>
       </section>
 
       {/* Footer */}
-      <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[11px] text-[var(--muted)]">
-        <ShieldCheck
-          size={16}
-          className="shrink-0 text-[var(--success)]"
-        />
-        Your account information is managed securely by OneAPI.
+      <div className="profile-footer">
+        <ShieldCheck size={16} />
+        <span>
+          Your account information is managed securely by OneAPI.
+        </span>
       </div>
     </div>
   );

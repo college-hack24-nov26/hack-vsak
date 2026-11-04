@@ -1,6 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import ThemeProvider from './components/ThemeProvider';
+import ThemeProvider from '../app/components/ThemeProvider';
 
 export const metadata: Metadata = {
   title: 'OneAPI — Enterprise Multi-Provider Proxy Gateway',

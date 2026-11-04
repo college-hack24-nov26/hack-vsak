@@ -1,8 +1,7 @@
 
 'use client';
 
-import React, { Suspense, useCallback, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   KeyRound,
   Plus,
@@ -19,7 +18,6 @@ import {
   LockKeyhole,
   ArrowUpRight,
   Terminal,
-  Loader2,
 } from 'lucide-react';
 import { authStorage, fetchApi } from '@/lib/api';
 
@@ -47,10 +45,7 @@ const secondaryButton =
 const inputClass =
   'w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] transition-all focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/10';
 
-function ApiKeysContent() {
-  const searchParams = useSearchParams();
-  const paramProjectId = searchParams.get('projectId');
-
+export default function ApiKeysPage() {
   const [user, setUser] = useState<any>(null);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [newKeyName, setNewKeyName] = useState('');
@@ -76,15 +71,9 @@ function ApiKeysContent() {
       const savedRaw = localStorage.getItem(STORAGE_LATEST_RAW_KEY);
       if (savedRaw) setFreshRawApiKey(savedRaw);
 
-      const targetProjectId = paramProjectId || authStorage.getProjectId();
-
-      const keysPath = targetProjectId
-        ? `/api/v1/auth/api-keys?projectId=${encodeURIComponent(targetProjectId)}`
-        : '/api/v1/auth/api-keys';
-
       const [userRes, keysRes] = await Promise.all([
         fetchApi('/api/v1/auth/me'),
-        fetchApi(keysPath),
+        fetchApi('/api/v1/auth/api-keys'),
       ]);
 
       if (userRes?.success && userRes.data?.user) {
@@ -95,9 +84,7 @@ function ApiKeysContent() {
       if (keysRes?.success && keysRes.data?.apiKeys) {
         setApiKeys(keysRes.data.apiKeys);
       } else {
-        setError(
-          keysRes?.message || keysRes?.error?.message || 'Unable to load API keys.'
-        );
+        setError(keysRes?.message || 'Unable to load API keys.');
       }
     } catch (err: any) {
       console.error('Failed to load API keys:', err);
@@ -105,7 +92,7 @@ function ApiKeysContent() {
     } finally {
       setLoading(false);
     }
-  }, [paramProjectId]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -136,14 +123,11 @@ function ApiKeysContent() {
     setError('');
 
     try {
-      const activeProjId = paramProjectId || authStorage.getProjectId();
-
       const res = await fetchApi('/api/v1/auth/create-api-key', {
         method: 'POST',
         body: JSON.stringify({
           name: newKeyName.trim() || 'Production Key',
           scopes: ['read', 'write', 'proxy'],
-          ...(activeProjId && { projectId: activeProjId }),
         }),
       });
 
@@ -153,9 +137,7 @@ function ApiKeysContent() {
         res.data?.fullKey;
 
       if (!res.success || !rawKey) {
-        throw new Error(
-          res.error?.message || res.message || 'API key creation failed.'
-        );
+        throw new Error(res.message || 'API key creation failed.');
       }
 
       setFreshRawApiKey(rawKey);
@@ -187,9 +169,7 @@ function ApiKeysContent() {
       });
 
       if (!res.success) {
-        throw new Error(
-          res.error?.message || res.message || 'Unable to revoke API key.'
-        );
+        throw new Error(res.message || 'Unable to revoke API key.');
       }
 
       await loadData();
@@ -260,18 +240,15 @@ function ApiKeysContent() {
                   Developer API Keys
                 </h1>
 
-                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-secondary)] px-3 py-1 text-xs font-semibold">
+                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-secondary)] px-3 py-1 text-xs font-semibold text-[var(--foreground)]">
                   {apiKeys.length} keys
                 </span>
               </div>
 
               <p className="mt-4 max-w-xl text-sm leading-6 text-[var(--muted)]">
                 Generate and manage API keys to authenticate application
-                servers and the official{' '}
-                <code className="rounded-md bg-[var(--surface-secondary)] px-1.5 py-1 font-mono text-[var(--primary)]">
-                  @oneapi/sdk
-                </code>{' '}
-                against your proxy gateway.
+                servers and the official <code className="rounded-md bg-[var(--surface-secondary)] px-1.5 py-1 font-mono text-[var(--primary)]">@oneapi/sdk</code>
+                {' '}against your proxy gateway.
               </p>
             </div>
 
@@ -299,14 +276,10 @@ function ApiKeysContent() {
 
             <button
               type="submit"
-              disabled={creatingApiKey || !newKeyName.trim()}
+              disabled={creatingApiKey}
               className={`${primaryButton} min-h-11 px-5`}
             >
-              {creatingApiKey ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Plus size={16} />
-              )}
+              <Plus size={16} />
               {creatingApiKey ? 'Generating...' : 'Create API Key'}
             </button>
           </form>
@@ -464,14 +437,14 @@ function ApiKeysContent() {
                       className="transition-colors hover:bg-[var(--surface)]"
                     >
                       <td className="px-5 py-4">
-                        <span className="text-sm font-semibold">
+                        <span className="text-sm font-semibold text-[var(--foreground)]">
                           {k.name}
                         </span>
                       </td>
 
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
-                          <code className="max-w-52 truncate rounded-lg bg-[var(--surface-secondary)] px-2.5 py-2 font-mono text-xs">
+                          <code className="max-w-52 truncate rounded-lg bg-[var(--surface-secondary)] px-2.5 py-2 font-mono text-xs text-[var(--foreground)]">
                             {displayString}
                           </code>
 
@@ -487,7 +460,9 @@ function ApiKeysContent() {
 
                           <button
                             type="button"
-                            onClick={() => copyToClipboard(keyToCopy, `row-${k._id}`)}
+                            onClick={() =>
+                              copyToClipboard(keyToCopy, `row-${k._id}`)
+                            }
                             title="Copy available key value"
                             className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 text-[var(--muted)] transition-colors hover:border-[var(--primary)] hover:text-[var(--primary)]"
                           >
@@ -524,13 +499,11 @@ function ApiKeysContent() {
                               : 'bg-[var(--danger)]/10 text-[var(--danger)]'
                           }`}
                         >
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${
-                              k.isActive !== false
-                                ? 'bg-[var(--success)]'
-                                : 'bg-[var(--danger)]'
-                            }`}
-                          />
+                          <span className={`h-1.5 w-1.5 rounded-full ${
+                            k.isActive !== false
+                              ? 'bg-[var(--success)]'
+                              : 'bg-[var(--danger)]'
+                          }`} />
                           {k.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
                         </span>
                       </td>
@@ -616,7 +589,7 @@ function ApiKeysContent() {
 
             <button
               type="submit"
-              disabled={validatingKey || !keyToValidate.trim() || !user}
+              disabled={validatingKey || !keyToValidate.trim()}
               className={`${primaryButton} min-h-11 sm:min-w-36`}
             >
               {validatingKey ? (
@@ -680,20 +653,5 @@ function ApiKeysContent() {
         </div>
       </div>
     </div>
-  );
-}
-
-export default function ApiKeysPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-[var(--muted)]">
-          <Loader2 className="h-5 w-5 animate-spin text-[var(--primary)]" />
-          Loading project API keys...
-        </div>
-      }
-    >
-      <ApiKeysContent />
-    </Suspense>
   );
 }

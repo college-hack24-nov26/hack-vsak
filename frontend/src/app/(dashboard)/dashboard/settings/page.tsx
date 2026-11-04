@@ -1,9 +1,8 @@
 
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Lock,
   LogOut,
@@ -20,9 +19,8 @@ import {
 } from 'lucide-react';
 import { authStorage, fetchApi } from '@/lib/api';
 
-function ProjectSettingsContent() {
+export default function SettingsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -59,10 +57,9 @@ function ProjectSettingsContent() {
     'Strong',
   ][passwordStrength];
 
-  // Delete modal
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [deleteConfirmationName, setDeleteConfirmationName] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordChangeMsg(null);
 
     if (newPassword !== confirmPassword) {
       setPasswordChangeMsg({
@@ -91,78 +88,11 @@ function ProjectSettingsContent() {
     setChangingPassword(true);
 
     try {
-      const paramProjectId = searchParams.get('project') || searchParams.get('projectId');
-      const storedProject = authStorage.getActiveProject();
-      const targetId = paramProjectId || storedProject?._id;
-
-      if (!targetId) {
-        router.push('/dashboard/projects');
-        return;
-      }
-
-      const res = await fetchApi(`/api/v1/projects/${targetId}`);
-      if (res.success && res.data?.project) {
-        const p = res.data.project;
-        setProject(p);
-        setProjectName(p.name || '');
-        setProjectDescription(p.description || '');
-        authStorage.setActiveProject(p);
-      } else {
-        // Fallback to stored active project if available
-        if (storedProject) {
-          setProject(storedProject);
-          setProjectName(storedProject.name || '');
-          setProjectDescription(storedProject.description || '');
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load project settings:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadProject();
-
-    const handleProjectChanged = (e: any) => {
-      const p = e.detail;
-      if (p) {
-        setProject(p);
-        setProjectName(p.name || '');
-        setProjectDescription(p.description || '');
-      }
-    };
-    window.addEventListener('oneapi_project_changed', handleProjectChanged);
-
-    return () => {
-      window.removeEventListener('oneapi_project_changed', handleProjectChanged);
-    };
-  }, [searchParams]);
-
-  const handleCopyId = () => {
-    const idToCopy = project?._id || project?.id || '';
-    if (idToCopy) {
-      navigator.clipboard.writeText(idToCopy);
-      setCopiedId(true);
-      setTimeout(() => setCopiedId(false), 2000);
-    }
-  };
-
-  const handleSaveProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!project?._id && !project?.id) return;
-
-    setSaving(true);
-    setSaveMsg(null);
-
-    const projectId = project._id || project.id;
-    try {
-      const res = await fetchApi(`/api/v1/projects/${projectId}`, {
-        method: 'PUT',
+      const res = await fetchApi('/api/v1/auth/change-password', {
+        method: 'POST',
         body: JSON.stringify({
-          name: projectName.trim(),
-          description: projectDescription.trim(),
+          currentPassword,
+          newPassword,
         }),
       });
 
@@ -187,7 +117,7 @@ function ProjectSettingsContent() {
         text: err.message || 'An error occurred while updating your password.',
       });
     } finally {
-      setSaving(false);
+      setChangingPassword(false);
     }
   };
 
@@ -250,57 +180,6 @@ function ProjectSettingsContent() {
           )}
         </button>
       </div>
-
-      {/* Delete Project Confirmation Modal */}
-      {isDeleteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f172a] border border-rose-900/60 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4">
-            <div className="flex items-center gap-2 text-rose-400 font-bold text-base">
-              <AlertTriangle className="w-5 h-5 shrink-0" />
-              <h3>Delete Project</h3>
-            </div>
-
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Are you sure you want to delete <span className="text-white font-semibold font-mono">{project?.name}</span>? All API keys and vault secrets bound to this project will be destroyed immediately.
-            </p>
-
-            <div>
-              <label className="block text-xs text-slate-400 mb-1.5">
-                Type <span className="font-mono font-bold text-rose-400">{project?.name}</span> to confirm:
-              </label>
-              <input
-                type="text"
-                value={deleteConfirmationName}
-                onChange={(e) => setDeleteConfirmationName(e.target.value)}
-                placeholder={project?.name}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-rose-500"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsDeleteModalOpen(false);
-                  setDeleteConfirmationName('');
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteProject}
-                disabled={deleteConfirmationName !== project?.name || isDeleting}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-1.5 transition-all"
-              >
-                {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                <span>Delete Project</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 
@@ -604,20 +483,5 @@ function ProjectSettingsContent() {
         </div>
       </div>
     </div>
-  );
-}
-
-export default function ProjectSettingsPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="max-w-3xl mx-auto py-12 flex flex-col items-center justify-center gap-3 text-slate-500 text-xs">
-          <Loader2 className="w-6 h-6 animate-spin text-sky-400" />
-          <span>Loading project settings...</span>
-        </div>
-      }
-    >
-      <ProjectSettingsContent />
-    </Suspense>
   );
 }

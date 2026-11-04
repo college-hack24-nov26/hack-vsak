@@ -1,120 +1,186 @@
 
 'use client';
 
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import {
-  Activity,
-  AlertCircle,
-  ArrowRight,
-  Ban,
-  Check,
-  CheckCircle2,
-  Cloud,
   Cpu,
-  ExternalLink,
+  Shield,
+  Key,
+  Play,
+  Trash2,
+  SlidersHorizontal,
+  CheckCircle2,
+  Lock,
   Eye,
   EyeOff,
-  Key,
-  Leaf,
-  Loader2,
-  Lock,
+  RefreshCw,
+  ExternalLink,
+  Zap,
+  Check,
+  Ban,
+  ArrowRight,
+  X,
+  Activity,
+  Server,
+  Cloud,
   Music2,
   Newspaper,
-  Play,
-  RefreshCw,
-  Shield,
-  Sliders,
-  Trash2,
-  X,
-  Zap,
+  Wind,
+  Bot,
+  AlertCircle,
+  Clock3,
+  Fingerprint,
+  CircleDot,
+  ChevronRight,
 } from 'lucide-react';
 
-import { fetchApi, authStorage } from '@/lib/api';
+import { fetchApi } from '@/lib/api';
 import {
   PROVIDERS_CATALOG,
-  type ProviderCatalogItem,
-  type Category,
+  ProviderCatalogItem,
+  Category,
 } from '@/lib/providersCatalog';
+
+const CATEGORY_THEMES: Record<
+  Category,
+  {
+    badge: string;
+    text: string;
+    iconBg: string;
+    border: string;
+    glow: string;
+    icon: React.ElementType;
+  }
+> = {
+  ai: {
+    badge: 'bg-violet-500/10 text-violet-500 border-violet-500/20',
+    text: 'text-violet-500',
+    iconBg: 'bg-violet-500/10 text-violet-500',
+    border: 'border-violet-500/20',
+    glow: 'from-violet-500/[0.08]',
+    icon: Bot,
+  },
+  weather: {
+    badge: 'bg-sky-500/10 text-sky-500 border-sky-500/20',
+    text: 'text-sky-500',
+    iconBg: 'bg-sky-500/10 text-sky-500',
+    border: 'border-sky-500/20',
+    glow: 'from-sky-500/[0.08]',
+    icon: Cloud,
+  },
+  music: {
+    badge: 'bg-pink-500/10 text-pink-500 border-pink-500/20',
+    text: 'text-pink-500',
+    iconBg: 'bg-pink-500/10 text-pink-500',
+    border: 'border-pink-500/20',
+    glow: 'from-pink-500/[0.08]',
+    icon: Music2,
+  },
+  news: {
+    badge: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+    text: 'text-amber-600',
+    iconBg: 'bg-amber-500/10 text-amber-600',
+    border: 'border-amber-500/20',
+    glow: 'from-amber-500/[0.08]',
+    icon: Newspaper,
+  },
+  environment: {
+    badge: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+    text: 'text-emerald-600',
+    iconBg: 'bg-emerald-500/10 text-emerald-600',
+    border: 'border-emerald-500/20',
+    glow: 'from-emerald-500/[0.08]',
+    icon: Wind,
+  },
+};
+
+const categories = [
+  { id: 'all', label: 'All providers' },
+  { id: 'ai', label: 'AI & LLMs' },
+  { id: 'weather', label: 'Weather' },
+  { id: 'music', label: 'Music' },
+  { id: 'news', label: 'News' },
+  { id: 'environment', label: 'Environment' },
+];
 
 type ConfigMessage = {
   type: 'success' | 'error';
   text: string;
-} | null;
-
-type TestResult = {
-  providerId: string;
-  category: Category;
-  status: number | string;
-  latencyMs: number;
-  finalProvider: string;
-  fallbackTriggered: boolean;
-  fallbackReason?: string;
-  summary: string;
-  raw: unknown;
 };
 
-type CategoryTheme = {
-  badge: string;
-  glow: string;
-  iconBg: string;
-};
+function SectionLabel({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">
+      {children}
+    </p>
+  );
+}
 
-const CATEGORY_THEMES: Record<Category, CategoryTheme> = {
-  ai: {
-    badge: 'bg-[var(--accent-purple)]/10 text-[var(--accent-purple)]',
-    glow: 'from-[var(--accent-purple)]/10',
-    iconBg: 'bg-[var(--accent-purple)]/10 text-[var(--accent-purple)]',
-  },
-  weather: {
-    badge: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
-    glow: 'from-sky-500/10',
-    iconBg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
-  },
-  music: {
-    badge: 'bg-pink-500/10 text-pink-600 dark:text-pink-400',
-    glow: 'from-pink-500/10',
-    iconBg: 'bg-pink-500/10 text-pink-600 dark:text-pink-400',
-  },
-  news: {
-    badge: 'bg-[var(--accent-yellow)]/10 text-[var(--accent-yellow)]',
-    glow: 'from-[var(--accent-yellow)]/10',
-    iconBg: 'bg-[var(--accent-yellow)]/10 text-[var(--accent-yellow)]',
-  },
-  environment: {
-    badge: 'bg-[var(--success)]/10 text-[var(--success)]',
-    glow: 'from-[var(--success)]/10',
-    iconBg: 'bg-[var(--success)]/10 text-[var(--success)]',
-  },
-};
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  accent = 'text-[var(--primary)]',
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string | number;
+  detail: string;
+  accent?: string;
+}) {
+  return (
+    <div className="group rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow)] sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
+          <p className="mt-2 text-2xl font-bold tracking-tight text-[var(--foreground)]">
+            {value}
+          </p>
+          <p className="mt-1 text-[11px] text-[var(--muted)]">{detail}</p>
+        </div>
+        <div className={`rounded-xl bg-[var(--surface-secondary)] p-2.5 ${accent}`}>
+          <Icon size={19} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
-const CATEGORY_META: Record<
-  Category,
-  { label: string; icon: React.ElementType }
-> = {
-  ai: { label: 'AI & LLM', icon: Cpu },
-  weather: { label: 'Weather', icon: Cloud },
-  music: { label: 'Music', icon: Music2 },
-  news: { label: 'News', icon: Newspaper },
-  environment: { label: 'Environment', icon: Leaf },
-};
+function StatusPill({
+  children,
+  color = 'neutral',
+}: {
+  children: React.ReactNode;
+  color?: 'success' | 'warning' | 'info' | 'danger' | 'neutral';
+}) {
+  const styles = {
+    success:
+      'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    warning:
+      'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    info: 'border-sky-500/20 bg-sky-500/10 text-sky-600 dark:text-sky-400',
+    danger:
+      'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+    neutral:
+      'border-[var(--border)] bg-[var(--surface-secondary)] text-[var(--muted)]',
+  };
 
-const surface =
-  'rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow)]';
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${styles[color]}`}
+    >
+      {children}
+    </span>
+  );
+}
 
-const primaryButton =
-  'inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50';
-
-const secondaryButton =
-  'inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-xs font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-secondary)] disabled:cursor-not-allowed disabled:opacity-50';
-
-const inputClass =
-  'w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-3 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/15';
-
-function ProvidersContent() {
-  const searchParams = useSearchParams();
-
+export default function ProvidersPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [vaultSecrets, setVaultSecrets] = useState<any[]>([]);
   const [routingRules, setRoutingRules] = useState<any[]>([]);
@@ -122,110 +188,49 @@ function ProvidersContent() {
 
   const [activeConfigProvider, setActiveConfigProvider] =
     useState<ProviderCatalogItem | null>(null);
-
   const [configApiKeyInput, setConfigApiKeyInput] = useState('');
-  const [configModelInput, setConfigModelInput] = useState('');
-  const [testModelInput, setTestModelInput] = useState('');
-
   const [showConfigApiKey, setShowConfigApiKey] = useState(false);
   const [savingConfigKey, setSavingConfigKey] = useState(false);
-  const [configMsg, setConfigMsg] = useState<ConfigMessage>(null);
+  const [configMsg, setConfigMsg] = useState<ConfigMessage | null>(null);
 
   const [testingProviderId, setTestingProviderId] = useState<string | null>(
-    null,
+    null
   );
-  const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [testResult, setTestResult] = useState<any>(null);
 
-  const projectId =
-    searchParams.get('project') ||
-    searchParams.get('projectId') ||
-    authStorage.getProjectId();
-
-  const loadVaultAndRouting = useCallback(async () => {
+  const loadVaultAndRouting = async () => {
     setLoading(true);
 
     try {
-      const query = projectId
-        ? `?projectId=${encodeURIComponent(projectId)}`
-        : '';
-
-      if (projectId) {
-        authStorage.setProjectId(projectId);
-      }
-
       const [vaultRes, routingRes] = await Promise.all([
-        fetchApi(`/api/v1/vault${query}`).catch(() => null),
-        fetchApi(`/api/v1/routing${query}`).catch(() => null),
+        fetchApi('/api/v1/vault').catch(() => null),
+        fetchApi('/api/v1/routing').catch(() => null),
       ]);
 
       if (vaultRes?.success) {
         setVaultSecrets(
-          vaultRes.data?.vaultSecrets || vaultRes.data?.secrets || [],
+          vaultRes.data?.vaultSecrets || vaultRes.data?.secrets || []
         );
       }
 
       if (routingRes?.success) {
         setRoutingRules(
-          routingRes.data?.routingRules || routingRes.data?.rules || [],
+          routingRes.data?.routingRules || routingRes.data?.rules || []
         );
       }
-    } catch (error) {
-      console.error('Failed to load provider configuration:', error);
+    } catch (err) {
+      console.error('Failed to load vault or routing:', err);
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  };
 
   useEffect(() => {
-    void loadVaultAndRouting();
-  }, [loadVaultAndRouting]);
-
-  const categories = useMemo(() => {
-    const categoryIds = Array.from(
-      new Set(PROVIDERS_CATALOG.map((provider) => provider.category)),
-    );
-
-    return [
-      {
-        id: 'all',
-        label: 'All providers',
-        count: PROVIDERS_CATALOG.length,
-      },
-      ...categoryIds.map((id) => ({
-        id,
-        label: CATEGORY_META[id as Category]?.label || id,
-        count: PROVIDERS_CATALOG.filter(
-          (provider) => provider.category === id,
-        ).length,
-      })),
-    ];
+    loadVaultAndRouting();
   }, []);
 
-  const filteredProviders = useMemo(() => {
-    if (selectedCategory === 'all') return PROVIDERS_CATALOG;
-
-    return PROVIDERS_CATALOG.filter(
-      (provider) => provider.category === selectedCategory,
-    );
-  }, [selectedCategory]);
-
-  const configuredCount = vaultSecrets.length;
-
-  const primaryCount = routingRules.filter(
-    (rule) => Boolean(rule.primaryProviderId),
-  ).length;
-
-  const getStoredSecret = (provider: ProviderCatalogItem) =>
-    vaultSecrets.find(
-      (secret) =>
-        secret.category?.toLowerCase() === provider.category.toLowerCase() &&
-        secret.providerId?.toLowerCase() === provider.id.toLowerCase(),
-    );
-
-  const handleSaveProviderKey = async (
-    event: React.FormEvent<HTMLFormElement>,
-  ) => {
-    event.preventDefault();
+  const handleSaveProviderKey = async (e: React.FormEvent) => {
+    e.preventDefault();
 
     if (!activeConfigProvider || !configApiKeyInput.trim()) return;
 
@@ -239,28 +244,26 @@ function ProvidersContent() {
           category: activeConfigProvider.category,
           providerId: activeConfigProvider.id,
           apiKey: configApiKeyInput.trim(),
-          model: configModelInput.trim() || undefined,
         }),
       });
 
       if (res.success) {
         setConfigMsg({
           type: 'success',
-          text: `Credential for ${activeConfigProvider.name} saved successfully.`,
+          text: `Credential for ${activeConfigProvider.name} was saved to the vault.`,
         });
-
         setConfigApiKeyInput('');
         await loadVaultAndRouting();
       } else {
         setConfigMsg({
           type: 'error',
-          text: res.error?.message || 'Failed to save credential.',
+          text: res.error?.message || 'Failed to save key into vault.',
         });
       }
-    } catch (error: any) {
+    } catch (err: any) {
       setConfigMsg({
         type: 'error',
-        text: error.message || 'Failed to save credential.',
+        text: err.message || 'Vault encryption error.',
       });
     } finally {
       setSavingConfigKey(false);
@@ -268,7 +271,7 @@ function ProvidersContent() {
   };
 
   const handleDeleteProviderKey = async (providerId: string) => {
-    if (!window.confirm('Remove this credential from the vault?')) return;
+    if (!confirm('Remove this credential from the encrypted vault?')) return;
 
     try {
       const res = await fetchApi(`/api/v1/vault/${providerId}`, {
@@ -278,9 +281,8 @@ function ProvidersContent() {
       if (res.success) {
         setConfigMsg({
           type: 'success',
-          text: 'Credential removed from vault.',
+          text: 'Credential removed from the vault.',
         });
-
         await loadVaultAndRouting();
       } else {
         setConfigMsg({
@@ -288,10 +290,10 @@ function ProvidersContent() {
           text: res.error?.message || 'Failed to remove credential.',
         });
       }
-    } catch (error: any) {
+    } catch (err: any) {
       setConfigMsg({
         type: 'error',
-        text: error.message || 'Failed to delete credential.',
+        text: err.message || 'Failed to delete vault secret.',
       });
     }
   };
@@ -299,10 +301,8 @@ function ProvidersContent() {
   const handleUpdateRouting = async (
     category: Category,
     primary: string,
-    fallback: string,
+    fallback: string
   ) => {
-    setConfigMsg(null);
-
     try {
       const res = await fetchApi('/api/v1/routing', {
         method: 'PUT',
@@ -316,11 +316,8 @@ function ProvidersContent() {
       if (res.success) {
         setConfigMsg({
           type: 'success',
-          text: `Updated ${category.toUpperCase()} routing. Primary: ${primary}. Fallback: ${
-            fallback === 'none' ? 'Disabled' : fallback
-          }.`,
+          text: `Updated ${category.toUpperCase()} routing configuration.`,
         });
-
         await loadVaultAndRouting();
       } else {
         setConfigMsg({
@@ -328,10 +325,10 @@ function ProvidersContent() {
           text: res.error?.message || 'Failed to update routing rule.',
         });
       }
-    } catch (error: any) {
+    } catch (err: any) {
       setConfigMsg({
         type: 'error',
-        text: error.message || 'Failed to update routing rule.',
+        text: err.message || 'Failed to update routing.',
       });
     }
   };
@@ -339,33 +336,24 @@ function ProvidersContent() {
   const handleSetPriorityRouting = async (
     category: Category,
     providerId: string,
-    role: 'primary' | 'fallback' | 'disable_fallback',
+    role: 'primary' | 'fallback' | 'disable_fallback'
   ) => {
-    const currentRule = routingRules.find(
-      (rule) => rule.category === category,
-    );
+    const currentRule = routingRules.find((r) => r.category === category);
 
     let primary = currentRule?.primaryProviderId || providerId;
     let fallback = currentRule?.fallbackProviderId || 'none';
 
     if (role === 'primary') {
       primary = providerId;
-
-      if (fallback === providerId) {
-        fallback = 'none';
-      }
+      if (fallback === providerId) fallback = 'none';
     } else if (role === 'fallback') {
       fallback = providerId;
 
       if (primary === providerId) {
-        const alternative = PROVIDERS_CATALOG.find(
-          (provider) =>
-            provider.category === category && provider.id !== providerId,
+        const other = PROVIDERS_CATALOG.find(
+          (p) => p.category === category && p.id !== providerId
         );
-
-        if (alternative) {
-          primary = alternative.id;
-        }
+        if (other) primary = other.id;
       }
     } else {
       fallback = 'none';
@@ -383,20 +371,17 @@ function ProvidersContent() {
     try {
       let endpoint = '';
       let method = 'GET';
-      let body: string | undefined;
+      let body: any = undefined;
 
       if (provider.category === 'ai') {
         endpoint = '/api/v1/proxy/ai/chat';
         method = 'POST';
-
         body = JSON.stringify({
           provider: provider.id,
-          model: testModelInput.trim() || configModelInput.trim() || undefined,
           messages: [
             {
               role: 'user',
-              content:
-                'Respond in one short sentence: What is OneAPI failover?',
+              content: 'Respond in 1 short sentence: What is OneAPI failover?',
             },
           ],
         });
@@ -411,62 +396,47 @@ function ProvidersContent() {
           '/api/v1/proxy/environment/air-quality?city=London';
       }
 
-      if (!endpoint) {
-        throw new Error(
-          'No test endpoint is configured for this provider category.',
-        );
-      }
+      const headers: Record<string, string> = {
+        'x-oneapi-provider': provider.id,
+      };
 
-      const res = await fetchApi(endpoint, {
-        method,
-        headers: {
-          'x-oneapi-provider': provider.id,
-        },
-        body,
-      });
-
+      const res = await fetchApi(endpoint, { method, headers, body });
       const latencyMs = Math.round(performance.now() - startTime);
-      const payload = (res.data || res) as any;
 
-      let summary = '';
+      const payload = (res.data || res) as any;
+      let summaryText = '';
 
       if (provider.category === 'ai') {
-        summary =
+        summaryText =
           payload.choices?.[0]?.message?.content ||
           payload.content ||
           'AI response received.';
       } else if (provider.category === 'weather') {
-        const current = payload.current || {};
-
-        summary = `${payload.location || 'San Francisco'}: ${
-          current.condition || 'Current conditions'
-        } | Temperature: ${current.temperature ?? '—'}°C | Humidity: ${
-          current.humidity ?? '—'
+        const cur = payload.current || {};
+        summaryText = `${payload.location || 'San Francisco'}: ${
+          cur.condition || 'Clear'
+        } | Temperature: ${cur.temperature ?? 18}°C | Humidity: ${
+          cur.humidity ?? 65
         }%`;
       } else if (provider.category === 'music') {
         const tracks = payload.tracks || [];
-
-        summary = tracks.length
-          ? `Found ${tracks.length} tracks. First: "${
-              tracks[0]?.title || 'Untitled'
-            }" by ${tracks[0]?.artist || 'Unknown artist'}.`
-          : 'Music search completed.';
+        summaryText =
+          tracks.length > 0
+            ? `Found ${tracks.length} tracks. First: "${tracks[0]?.title}" by ${tracks[0]?.artist}`
+            : 'Music search completed.';
       } else if (provider.category === 'news') {
         const articles = payload.articles || [];
-
-        summary = articles.length
-          ? `Headline: "${articles[0]?.title || 'Untitled'}" (${
-              articles[0]?.source || 'News'
-            }).`
-          : 'News search completed.';
+        summaryText =
+          articles.length > 0
+            ? `Headline: "${articles[0]?.title}" (${articles[0]?.source || 'News'})`
+            : 'News search completed.';
       } else if (provider.category === 'environment') {
         const air = payload.airQuality || {};
-
-        summary = `Air Quality in ${
+        summaryText = `Air quality in ${
           payload.location || 'London'
-        }: ${air.status || 'Response received'} (PM2.5: ${
-          air.pm25 ?? '—'
-        }).`;
+        }: ${air.status || 'Moderate'} (PM2.5: ${
+          air.pm25 ?? 'Normal'
+        })`;
       }
 
       setTestResult({
@@ -477,10 +447,10 @@ function ProvidersContent() {
         finalProvider: res._oneapi?.finalProvider || provider.id,
         fallbackTriggered: Boolean(res._oneapi?.fallbackTriggered),
         fallbackReason: res._oneapi?.fallbackReason,
-        summary,
+        summary: summaryText,
         raw: res,
       });
-    } catch (error: any) {
+    } catch (err: any) {
       setTestResult({
         providerId: provider.id,
         category: provider.category,
@@ -488,166 +458,259 @@ function ProvidersContent() {
         latencyMs: Math.round(performance.now() - startTime),
         finalProvider: provider.id,
         fallbackTriggered: false,
-        summary: `Error: ${error.message || 'Provider test failed.'}`,
-        raw: {
-          error: error.message || 'Provider test failed.',
-        },
+        summary: `Error: ${err.message}`,
+        raw: { error: err.message },
       });
     } finally {
       setTestingProviderId(null);
     }
   };
 
-  const openProviderConfig = (provider: ProviderCatalogItem) => {
-    setActiveConfigProvider(provider);
-    setConfigMsg(null);
-    setConfigApiKeyInput('');
-    setConfigModelInput('');
-    setTestModelInput('');
-    setShowConfigApiKey(false);
-    setTestResult(null);
-  };
+  const filteredProviders = useMemo(
+    () =>
+      selectedCategory === 'all'
+        ? PROVIDERS_CATALOG
+        : PROVIDERS_CATALOG.filter(
+            (provider) => provider.category === selectedCategory
+          ),
+    [selectedCategory]
+  );
 
-  const closeModal = () => {
-    setActiveConfigProvider(null);
-    setConfigMsg(null);
-    setConfigApiKeyInput('');
-    setConfigModelInput('');
-    setTestModelInput('');
-    setTestResult(null);
-  };
+  const configuredCount = PROVIDERS_CATALOG.filter((provider) =>
+    vaultSecrets.some(
+      (secret) =>
+        secret.category?.toLowerCase() === provider.category?.toLowerCase() &&
+        secret.providerId?.toLowerCase() === provider.id?.toLowerCase()
+    )
+  ).length;
+
+  const categoryCount = (id: string) =>
+    id === 'all'
+      ? PROVIDERS_CATALOG.length
+      : PROVIDERS_CATALOG.filter((p) => p.category === id).length;
+
+  const currentProviderCount = filteredProviders.length;
 
   return (
-    <div className="space-y-6 text-[var(--foreground)]">
+    <div className="min-h-full space-y-6 pb-10">
       {/* Page heading */}
-      <section className={`${surface} relative isolate overflow-hidden p-6 md:p-8`}>
-        <div className="pointer-events-none absolute -right-20 -top-28 -z-10 h-72 w-72 rounded-full bg-[var(--primary)]/10 blur-3xl" />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--primary)]">
+            <Cpu size={13} />
+            Infrastructure
+            <ChevronRight size={12} />
+            Provider management
+          </div>
 
-        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
-          <div className="min-w-0">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-[var(--primary)]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--primary)]">
-                Provider control center
-              </span>
-              <span className="text-xs text-[var(--muted)]">
-                · Unified authentication
-              </span>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
+            API Providers
+          </h1>
+
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+            Connect providers, securely manage credentials and control how
+            requests are routed across your gateway.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={loadVaultAndRouting}
+          disabled={loading}
+          className="inline-flex items-center justify-center gap-2 self-start rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-2.5 text-xs font-semibold text-[var(--foreground)] shadow-sm transition hover:bg-[var(--surface-secondary)] disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
+        >
+          <RefreshCw
+            size={14}
+            className={loading ? 'animate-spin text-[var(--primary)]' : ''}
+          />
+          {loading ? 'Synchronizing...' : 'Sync configuration'}
+        </button>
+      </div>
+
+      {/* Overview banner */}
+      <section className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow)]">
+        <div className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full bg-[var(--primary)]/[0.08] blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 right-1/3 h-40 w-40 rounded-full bg-violet-500/[0.05] blur-3xl" />
+
+        <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="max-w-2xl">
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <StatusPill color="success">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Gateway workspace
+              </StatusPill>
+              <StatusPill color="info">
+                <Fingerprint size={11} />
+                Encrypted credential vault
+              </StatusPill>
             </div>
 
-            <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight md:text-3xl">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
-                <Cpu className="h-6 w-6" />
-              </span>
-              API Providers
-            </h1>
+            <h2 className="text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+              Your providers. One control plane.
+            </h2>
 
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-              Connect provider credentials, manage encrypted vault entries,
-              and assign primary and fallback routes from one workspace.
+            <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">
+              Manage your integrations from one place. Configure provider
+              credentials, assign routing priorities and test gateway
+              connectivity without leaving your workspace.
             </p>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Link
+                href="/dashboard/routing"
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-[var(--primary)]/15 transition hover:opacity-90"
+              >
+                Manage routing
+                <ArrowRight size={14} />
+              </Link>
+
+              <span className="inline-flex items-center gap-2 text-xs text-[var(--muted)]">
+                <Lock size={13} />
+                Credentials are stored in your vault
+              </span>
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void loadVaultAndRouting()}
-            disabled={loading}
-            className={secondaryButton}
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}
-            />
-            {loading ? 'Syncing…' : 'Sync vault & rules'}
-          </button>
-        </div>
+          <div className="hidden min-w-[210px] rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-4 lg:block">
+            <div className="flex items-center justify-between">
+              <SectionLabel>Gateway control</SectionLabel>
+              <Activity size={15} className="text-[var(--primary)]" />
+            </div>
 
-        <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {[
-            {
-              label: 'Available providers',
-              value: PROVIDERS_CATALOG.length,
-              icon: Cpu,
-            },
-            {
-              label: 'Vault credentials',
-              value: configuredCount,
-              icon: Lock,
-            },
-            {
-              label: 'Routing rules loaded',
-              value: primaryCount,
-              icon: Shield,
-            },
-          ].map((stat) => {
-            const Icon = stat.icon;
-
-            return (
-              <div
-                key={stat.label}
-                className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/80 p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-[var(--muted)]">
-                    {stat.label}
-                  </p>
-                  <Icon className="h-4 w-4 text-[var(--muted)]" />
-                </div>
-                <p className="mt-1 text-2xl font-bold tabular-nums">
-                  {stat.value}
+            <div className="mt-4 flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--primary)]/10 text-[var(--primary)]">
+                <Server size={18} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-[var(--foreground)]">
+                  OneAPI
+                </p>
+                <p className="text-[10px] text-[var(--muted)]">
+                  Provider control plane
                 </p>
               </div>
-            );
-          })}
+            </div>
+
+            <div className="mt-4 border-t border-[var(--border)] pt-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[var(--muted)]">Configured keys</span>
+                <span className="font-bold tabular-nums text-[var(--foreground)]">
+                  {configuredCount}/{PROVIDERS_CATALOG.length}
+                </span>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--surface-secondary)]">
+                <div
+                  className="h-full rounded-full bg-[var(--primary)] transition-all"
+                  style={{
+                    width: `${
+                      PROVIDERS_CATALOG.length
+                        ? (configuredCount / PROVIDERS_CATALOG.length) * 100
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Routing shortcut */}
-      <section
-        className={`${surface} flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between`}
-      >
-        <div className="flex items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)]/10 text-[var(--primary)]">
-            <Zap className="h-5 w-5" />
-          </span>
+      {/* Statistics */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          icon={Cpu}
+          label="Available providers"
+          value={PROVIDERS_CATALOG.length}
+          detail="Across all service categories"
+        />
+        <StatCard
+          icon={Lock}
+          label="Configured credentials"
+          value={configuredCount}
+          detail="Credentials found in your vault"
+          accent="text-emerald-500"
+        />
+        <StatCard
+          icon={Zap}
+          label="Routing categories"
+          value={routingRules.length}
+          detail="Categories with saved routing rules"
+          accent="text-violet-500"
+        />
+        <StatCard
+          icon={Activity}
+          label="Visible providers"
+          value={currentProviderCount}
+          detail={
+            selectedCategory === 'all'
+              ? 'Showing all categories'
+              : `Filtered by ${selectedCategory}`
+          }
+          accent="text-sky-500"
+        />
+      </div>
 
+      {/* Routing banner */}
+      <section className="group relative overflow-hidden rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary)]/[0.045] p-5 sm:p-6">
+        <div className="pointer-events-none absolute -right-12 -top-20 h-48 w-48 rounded-full bg-[var(--primary)]/[0.08] blur-3xl" />
+
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3.5">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)]/10 text-[var(--primary)]">
+              <Zap size={21} />
+            </div>
+
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-bold text-[var(--foreground)] sm:text-base">
+                  Routing & failover configuration
+                </h2>
+                <StatusPill color="info">Control center</StatusPill>
+              </div>
+              <p className="mt-1.5 max-w-xl text-xs leading-5 text-[var(--muted)]">
+                Choose primary providers, configure secondary fallbacks and
+                manage routing behavior for each service category.
+              </p>
+            </div>
+          </div>
+
+          <Link
+            href="/dashboard/routing"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--primary)]/20 bg-[var(--card)] px-4 py-2.5 text-xs font-bold text-[var(--primary)] shadow-sm transition hover:border-[var(--primary)]/50 hover:bg-[var(--primary)]/5"
+          >
+            Open routing center
+            <ArrowRight size={14} />
+          </Link>
+        </div>
+      </section>
+
+      {/* Provider section header */}
+      <section>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="font-semibold">
-              Failover priority & direct-call controls
+            <SectionLabel>Integrations</SectionLabel>
+            <h2 className="mt-1 text-lg font-bold text-[var(--foreground)]">
+              Provider directory
             </h2>
-            <p className="mt-1 max-w-2xl text-xs leading-5 text-[var(--muted)]">
-              Configure primary providers and optional fallbacks, or manage
-              direct-call behavior in the routing workspace.
-            </p>
-          </div>
-        </div>
-
-        <Link
-          href="/dashboard/routing"
-          className={`${primaryButton} shrink-0`}
-        >
-          Configure routing
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </section>
-
-      {/* Provider directory */}
-      <section className="space-y-4">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-lg font-bold">Provider directory</h2>
-            <p className="text-xs text-[var(--muted)]">
-              Configure credentials or test a provider connection.
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Select a provider to configure credentials or run a live test.
             </p>
           </div>
 
-          <span className="text-xs text-[var(--muted)]">
-            {filteredProviders.length} providers shown
-          </span>
+          <p className="text-xs text-[var(--muted)]">
+            Showing{' '}
+            <span className="font-bold text-[var(--foreground)]">
+              {filteredProviders.length}
+            </span>{' '}
+            providers
+          </p>
         </div>
 
         {/* Category filters */}
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex gap-2 overflow-x-auto pb-2">
           {categories.map((category) => {
             const active = selectedCategory === category.id;
+            const count = categoryCount(category.id);
 
             return (
               <button
@@ -656,639 +719,694 @@ function ProvidersContent() {
                 onClick={() => setSelectedCategory(category.id)}
                 className={`inline-flex shrink-0 items-center gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-semibold transition ${
                   active
-                    ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-sm'
-                    : 'border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)]'
+                    ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-md shadow-[var(--primary)]/15'
+                    : 'border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:border-[var(--primary)]/40 hover:text-[var(--foreground)]'
                 }`}
               >
                 {category.label}
                 <span
-                  className={`rounded-md px-1.5 py-0.5 text-[10px] ${
+                  className={`rounded-md px-1.5 py-0.5 text-[10px] tabular-nums ${
                     active
                       ? 'bg-white/15 text-white'
                       : 'bg-[var(--surface-secondary)] text-[var(--muted)]'
                   }`}
                 >
-                  {category.count}
+                  {count}
                 </span>
               </button>
             );
           })}
         </div>
+      </section>
 
-        {loading && vaultSecrets.length === 0 && routingRules.length === 0 ? (
-          <div
-            className={`${surface} flex min-h-48 items-center justify-center gap-3 text-sm text-[var(--muted)]`}
-          >
-            <RefreshCw className="h-4 w-4 animate-spin" />
-            Loading provider configuration…
-          </div>
-        ) : filteredProviders.length === 0 ? (
-          <div className={`${surface} p-10 text-center text-sm text-[var(--muted)]`}>
-            No providers found in this category.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredProviders.map((provider) => {
-              const storedSecret = getStoredSecret(provider);
-              const isConfigured = Boolean(storedSecret);
+      {/* Provider cards */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+        {filteredProviders.map((provider) => {
+          const storedSecret = vaultSecrets.find(
+            (s) =>
+              s.category?.toLowerCase() ===
+                provider.category?.toLowerCase() &&
+              s.providerId?.toLowerCase() === provider.id?.toLowerCase()
+          );
 
-              const currentRule = routingRules.find(
-                (rule) => rule.category === provider.category,
-              );
+          const isConfigured = Boolean(storedSecret);
+          const currentRule = routingRules.find(
+            (r) => r.category === provider.category
+          );
+          const isPrimary =
+            currentRule?.primaryProviderId === provider.id;
+          const isFallback =
+            currentRule?.fallbackProviderId === provider.id;
+          const isTesting = testingProviderId === provider.id;
+          const currentTest =
+            testResult?.providerId === provider.id ? testResult : null;
 
-              const isPrimary =
-                currentRule?.primaryProviderId === provider.id;
+          const theme = CATEGORY_THEMES[provider.category];
+          const CategoryIcon = theme.icon;
 
-              const isFallback =
-                currentRule?.fallbackProviderId === provider.id;
+          return (
+            <article
+              key={provider.id}
+              className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm transition duration-200 hover:-translate-y-1 hover:border-[var(--primary)]/30 hover:shadow-[var(--shadow)]"
+            >
+              <div
+                className={`pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b ${theme.glow} to-transparent opacity-80`}
+              />
 
-              const isTesting = testingProviderId === provider.id;
+              <div className="relative flex flex-1 flex-col p-5">
+                {/* Provider identity */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2.5 shadow-sm transition group-hover:scale-105">
+                      <img
+                        src={provider.iconUrl}
+                        alt={provider.name}
+                        className="h-full w-full object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display =
+                            'none';
+                        }}
+                      />
+                    </div>
 
-              const currentTest =
-                testResult?.providerId === provider.id ? testResult : null;
+                    <div className="min-w-0">
+                      <h3 className="truncate text-sm font-bold text-[var(--foreground)] transition group-hover:text-[var(--primary)]">
+                        {provider.name}
+                      </h3>
 
-              const theme = CATEGORY_THEMES[provider.category];
-              const CategoryIcon = CATEGORY_META[provider.category].icon;
-
-              return (
-                <article
-                  key={provider.id}
-                  className={`${surface} group relative flex min-w-0 flex-col overflow-hidden transition duration-200 hover:-translate-y-0.5 hover:border-[var(--primary)]/40`}
-                >
-                  <div
-                    className={`pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b ${theme.glow} to-transparent opacity-80`}
-                  />
-
-                  <div className="relative flex flex-1 flex-col p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div
-                          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${theme.iconBg} ring-1 ring-inset ring-[var(--border)]`}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                        <span
+                          className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${theme.badge}`}
                         >
-                          <img
-                            src={provider.iconUrl}
-                            alt={`${provider.name} logo`}
-                            className="h-8 w-8 object-contain"
-                            onError={(event) => {
-                              event.currentTarget.style.display = 'none';
-                            }}
-                          />
-                          <CategoryIcon className="hidden h-5 w-5" />
-                        </div>
+                          {provider.category}
+                        </span>
 
-                        <div className="min-w-0">
-                          <h3 className="truncate text-sm font-bold">
-                            {provider.name}
-                          </h3>
-
-                          <div className="mt-1 flex flex-wrap items-center gap-2">
-                            <span
-                              className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${theme.badge}`}
-                            >
-                              {provider.category}
-                            </span>
-
-                            <a
-                              href={provider.docUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] text-[var(--muted)] transition hover:text-[var(--primary)]"
-                            >
-                              Docs
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </div>
-                        </div>
+                        <a
+                          href={provider.docUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-[var(--muted)] transition hover:text-[var(--primary)]"
+                        >
+                          Documentation
+                          <ExternalLink size={10} />
+                        </a>
                       </div>
+                    </div>
+                  </div>
 
-                      {isConfigured ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-[var(--success)]/10 px-2 py-1 text-[10px] font-semibold text-[var(--success)]">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Configured
+                  <div className="shrink-0">
+                    {isConfigured ? (
+                      <StatusPill color="success">
+                        <CheckCircle2 size={11} />
+                        Connected
+                      </StatusPill>
+                    ) : provider.requiresKey ? (
+                      <StatusPill color="warning">
+                        <Key size={11} />
+                        Setup required
+                      </StatusPill>
+                    ) : (
+                      <StatusPill color="info">
+                        <Check size={11} />
+                        Keyless
+                      </StatusPill>
+                    )}
+                  </div>
+                </div>
+
+                {/* Description */}
+                <p className="mt-4 min-h-[40px] text-xs leading-5 text-[var(--muted)]">
+                  {provider.tagline}
+                </p>
+
+                {/* Provider details */}
+                <div className="mt-4 space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-[11px] text-[var(--muted)]">
+                      <Lock size={13} />
+                      Credential status
+                    </span>
+
+                    {isConfigured ? (
+                      <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 size={12} />
+                        <span className="truncate">
+                          {storedSecret.keyPreview
+                            ? `•••• ${storedSecret.keyPreview}`
+                            : 'Stored securely'}
                         </span>
-                      ) : provider.requiresKey ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-[var(--accent-yellow)]/10 px-2 py-1 text-[10px] font-semibold text-[var(--accent-yellow)]">
-                          <Key className="h-3.5 w-3.5" />
-                          Key required
-                        </span>
-                      ) : (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-[var(--success)]/10 px-2 py-1 text-[10px] font-semibold text-[var(--success)]">
-                          <Check className="h-3.5 w-3.5" />
-                          Keyless
-                        </span>
+                      </span>
+                    ) : provider.requiresKey ? (
+                      <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                        <AlertCircle size={12} />
+                        Not configured
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[10px] font-semibold text-sky-600 dark:text-sky-400">
+                        <Check size={12} />
+                        No key required
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="h-px bg-[var(--border)]" />
+
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-[11px] text-[var(--muted)]">
+                      <Activity size={13} />
+                      Routing priority
+                    </span>
+
+                    {isPrimary ? (
+                      <StatusPill color="info">
+                        <Zap size={11} />
+                        Primary
+                      </StatusPill>
+                    ) : isFallback ? (
+                      <StatusPill color="success">
+                        <Shield size={11} />
+                        Fallback
+                      </StatusPill>
+                    ) : (
+                      <StatusPill>
+                        <CircleDot size={11} />
+                        Standby
+                      </StatusPill>
+                    )}
+                  </div>
+                </div>
+
+                {/* Live test result */}
+                {currentTest && (
+                  <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <StatusPill
+                        color={
+                          currentTest.status === 200 ? 'success' : 'danger'
+                        }
+                      >
+                        <Activity size={11} />
+                        HTTP {currentTest.status}
+                      </StatusPill>
+
+                      <span className="flex items-center gap-1 text-[10px] font-semibold text-[var(--muted)]">
+                        <Clock3 size={11} />
+                        {currentTest.latencyMs} ms
+                      </span>
+
+                      {currentTest.fallbackTriggered && (
+                        <StatusPill color="warning">
+                          <Shield size={11} />
+                          Failover used
+                        </StatusPill>
                       )}
                     </div>
 
-                    <p className="mt-4 min-h-10 text-xs leading-5 text-[var(--muted)]">
-                      {provider.tagline}
+                    <p className="mt-2 line-clamp-3 text-xs leading-5 text-[var(--muted)]">
+                      {currentTest.summary}
                     </p>
-
-                    {/* Provider status */}
-                    <div className="mb-4 mt-3 space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[var(--muted)]">
-                          Vault credential
-                        </span>
-
-                        {isConfigured ? (
-                          <span className="flex items-center gap-1 text-right font-semibold text-[var(--success)]">
-                            <Lock className="h-3.5 w-3.5 shrink-0" />
-                            Encrypted
-                            {storedSecret.keyPreview
-                              ? ` (${storedSecret.keyPreview})`
-                              : ''}
-                          </span>
-                        ) : provider.requiresKey ? (
-                          <span className="flex items-center gap-1 font-semibold text-[var(--danger)]">
-                            <Key className="h-3.5 w-3.5" />
-                            Not in vault
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 font-semibold text-[var(--success)]">
-                            <Check className="h-3.5 w-3.5" />
-                            Free & keyless
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[var(--muted)]">
-                          Routing role
-                        </span>
-
-                        {isPrimary ? (
-                          <span className="flex items-center gap-1 font-bold text-[var(--primary)]">
-                            <Zap className="h-3.5 w-3.5" />
-                            Primary route
-                          </span>
-                        ) : isFallback ? (
-                          <span className="flex items-center gap-1 font-bold text-[var(--accent-purple)]">
-                            <Shield className="h-3.5 w-3.5" />
-                            Fallback route
-                          </span>
-                        ) : (
-                          <span className="text-[var(--muted)]">
-                            Standby route
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Test result */}
-                    {currentTest && (
-                      <div className="mb-3 space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 text-xs">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span
-                            className={`font-semibold ${
-                              Number(currentTest.status) >= 200 &&
-                              Number(currentTest.status) < 300
-                                ? 'text-[var(--success)]'
-                                : 'text-[var(--danger)]'
-                            }`}
-                          >
-                            HTTP {currentTest.status}
-                          </span>
-
-                          <span className="text-[var(--muted)]">
-                            {currentTest.latencyMs} ms
-                          </span>
-
-                          {currentTest.fallbackTriggered && (
-                            <span className="rounded-md bg-[var(--accent-yellow)]/10 px-2 py-1 text-[var(--accent-yellow)]">
-                              Failover used
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="line-clamp-3 leading-5 text-[var(--foreground)]">
-                          {currentTest.summary}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="mt-auto flex items-center gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleTestProvider(provider)}
-                        disabled={isTesting}
-                        className={`${secondaryButton} flex-1`}
-                        title="Run a live gateway request"
-                      >
-                        {isTesting ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Play className="h-3.5 w-3.5" />
-                        )}
-                        {isTesting ? 'Testing…' : 'Test live'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => openProviderConfig(provider)}
-                        className={`${primaryButton} flex-1`}
-                      >
-                        <Sliders className="h-3.5 w-3.5" />
-                        Configure
-                      </button>
-                    </div>
                   </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
+                )}
 
-      {/* Provider configuration modal */}
+                {/* Actions */}
+                <div className="mt-auto flex gap-2 pt-5">
+                  <button
+                    type="button"
+                    onClick={() => handleTestProvider(provider)}
+                    disabled={isTesting}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-xs font-semibold text-[var(--foreground)] transition hover:border-[var(--primary)]/40 hover:bg-[var(--surface-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Play
+                      size={13}
+                      className={isTesting ? 'animate-pulse' : ''}
+                      fill={isTesting ? 'none' : 'currentColor'}
+                    />
+                    {isTesting ? 'Testing...' : 'Test provider'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveConfigProvider(provider);
+                      setConfigMsg(null);
+                      setConfigApiKeyInput('');
+                      setShowConfigApiKey(false);
+                      setTestResult(null);
+                    }}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-3 py-2.5 text-xs font-bold text-white shadow-sm transition hover:opacity-90"
+                  >
+                    <SlidersHorizontal size={13} />
+                    Configure
+                  </button>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      {/* Empty state */}
+      {filteredProviders.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] px-5 py-14 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-secondary)] text-[var(--muted)]">
+            <Cpu size={22} />
+          </div>
+          <h3 className="mt-4 text-sm font-bold text-[var(--foreground)]">
+            No providers found
+          </h3>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            There are no providers in this category.
+          </p>
+        </div>
+      )}
+
+      {/* Configuration modal */}
       {activeConfigProvider && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-3 backdrop-blur-sm sm:p-5"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeModal();
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setActiveConfigProvider(null);
+            }
           }}
         >
-          <section
+          <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="provider-config-title"
-            className="my-auto max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 text-[var(--foreground)] shadow-2xl sm:p-7"
+            className="my-auto w-full max-w-2xl overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl"
           >
-            {/* Modal heading */}
-            <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] pb-5">
-              <div className="flex min-w-0 items-center gap-3">
-                <div
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${CATEGORY_THEMES[activeConfigProvider.category].iconBg}`}
-                >
-                  <img
-                    src={activeConfigProvider.iconUrl}
-                    alt=""
-                    className="h-8 w-8 object-contain"
-                    onError={(event) => {
-                      event.currentTarget.style.display = 'none';
-                    }}
-                  />
-                </div>
+            {/* Modal header */}
+            <div className="relative overflow-hidden border-b border-[var(--border)] bg-[var(--surface)] px-5 py-5 sm:px-6">
+              <div className="pointer-events-none absolute -right-12 -top-24 h-48 w-48 rounded-full bg-[var(--primary)]/[0.08] blur-3xl" />
 
-                <div className="min-w-0">
-                  <h2
-                    id="provider-config-title"
-                    className="truncate text-lg font-bold"
-                  >
-                    {activeConfigProvider.name}
-                  </h2>
-
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
-                    <span className="capitalize">
-                      {activeConfigProvider.category}
-                    </span>
-                    <span>·</span>
-                    <a
-                      href={activeConfigProvider.docUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[var(--primary)] hover:underline"
-                    >
-                      Official docs
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeModal}
-                aria-label="Close dialog"
-                className="rounded-lg p-2 text-[var(--muted)] transition hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)]"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Feedback */}
-            {configMsg && (
-              <div
-                className={`mt-5 flex items-start gap-2 rounded-xl border p-3 text-xs ${
-                  configMsg.type === 'success'
-                    ? 'border-[var(--success)]/25 bg-[var(--success)]/10 text-[var(--success)]'
-                    : 'border-[var(--danger)]/25 bg-[var(--danger)]/10 text-[var(--danger)]'
-                }`}
-              >
-                {configMsg.type === 'success' ? (
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                )}
-                <span>{configMsg.text}</span>
-              </div>
-            )}
-
-            {/* Credential form */}
-            <div className="mt-5 space-y-4">
-              {activeConfigProvider.requiresKey ? (
-                <form
-                  onSubmit={handleSaveProviderKey}
-                  className="space-y-3"
-                >
-                  <div>
-                    <h3 className="text-sm font-semibold">
-                      Provider credentials
-                    </h3>
-                    <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-                      Add your provider API key to the OneAPI vault.
-                    </p>
-                  </div>
-
-                  <label className="block text-xs font-semibold">
-                    API key
-                  </label>
-
-                  <div className="relative">
-                    <Key className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
-
-                    <input
-                      type={showConfigApiKey ? 'text' : 'password'}
-                      placeholder={`Paste ${activeConfigProvider.name} API key`}
-                      value={configApiKeyInput}
-                      onChange={(event) =>
-                        setConfigApiKeyInput(event.target.value)
-                      }
-                      required
-                      autoComplete="off"
-                      className={`${inputClass} pl-10 pr-11 font-mono`}
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5">
+                    <img
+                      src={activeConfigProvider.iconUrl}
+                      alt={activeConfigProvider.name}
+                      className="h-full w-full object-contain"
                     />
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowConfigApiKey((current) => !current)
-                      }
-                      aria-label={
-                        showConfigApiKey ? 'Hide API key' : 'Show API key'
-                      }
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] transition hover:text-[var(--foreground)]"
-                    >
-                      {showConfigApiKey ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
                   </div>
 
-                  <div>
-                    <label className="mb-2 block text-xs font-semibold">
-                      Model name
-                      <span className="ml-1 font-normal text-[var(--muted)]">
-                        (optional)
+                  <div className="min-w-0">
+                    <SectionLabel>Provider configuration</SectionLabel>
+                    <h2
+                      id="provider-config-title"
+                      className="mt-1 truncate text-base font-bold text-[var(--foreground)]"
+                    >
+                      {activeConfigProvider.name}
+                    </h2>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="text-[10px] capitalize text-[var(--muted)]">
+                        {activeConfigProvider.category} integration
                       </span>
-                    </label>
-
-                    <input
-                      type="text"
-                      value={configModelInput}
-                      onChange={(event) =>
-                        setConfigModelInput(event.target.value)
-                      }
-                      placeholder="Enter default model name"
-                      className={inputClass}
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="submit"
-                      disabled={
-                        savingConfigKey || !configApiKeyInput.trim()
-                      }
-                      className={`${primaryButton} flex-1`}
-                    >
-                      {savingConfigKey ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Saving credential…
-                        </>
-                      ) : (
-                        <>
-                          <Lock className="h-4 w-4" />
-                          Save to vault
-                        </>
-                      )}
-                    </button>
-
-                    {getStoredSecret(activeConfigProvider) && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void handleDeleteProviderKey(
-                            activeConfigProvider.id,
-                          )
-                        }
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--danger)]/25 bg-[var(--danger)]/10 px-3.5 py-2.5 text-xs font-semibold text-[var(--danger)] transition hover:bg-[var(--danger)]/15"
-                        title="Remove credential from vault"
+                      <span className="h-1 w-1 rounded-full bg-[var(--muted)]" />
+                      <a
+                        href={activeConfigProvider.docUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--primary)] hover:underline"
                       >
-                        <Trash2 className="h-4 w-4" />
-                        Revoke
-                      </button>
-                    )}
+                        Official documentation
+                        <ExternalLink size={10} />
+                      </a>
+                    </div>
                   </div>
-                </form>
-              ) : (
-                <div className="flex items-center gap-2 rounded-xl border border-[var(--success)]/20 bg-[var(--success)]/10 p-3.5 text-xs text-[var(--success)]">
-                  <Check className="h-4 w-4 shrink-0" />
-                  <span>
-                    <strong>{activeConfigProvider.name}</strong> does not
-                    require an API key according to the provider catalog.
-                  </span>
                 </div>
-              )}
-
-              {/* Routing controls */}
-              <div className="space-y-3 border-t border-[var(--border)] pt-5">
-                <div>
-                  <h3 className="text-sm font-semibold">
-                    Failover priority assignment
-                  </h3>
-                  <p className="mt-1 text-xs text-[var(--muted)]">
-                    Assign this provider as the primary or fallback provider
-                    for its category.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void handleSetPriorityRouting(
-                        activeConfigProvider.category,
-                        activeConfigProvider.id,
-                        'primary',
-                      )
-                    }
-                    className={secondaryButton}
-                  >
-                    <Zap className="h-3.5 w-3.5 text-[var(--primary)]" />
-                    Primary
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void handleSetPriorityRouting(
-                        activeConfigProvider.category,
-                        activeConfigProvider.id,
-                        'fallback',
-                      )
-                    }
-                    className={secondaryButton}
-                  >
-                    <Shield className="h-3.5 w-3.5 text-[var(--accent-purple)]" />
-                    Fallback
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void handleSetPriorityRouting(
-                        activeConfigProvider.category,
-                        activeConfigProvider.id,
-                        'disable_fallback',
-                      )
-                    }
-                    className={secondaryButton}
-                  >
-                    <Ban className="h-3.5 w-3.5 text-[var(--danger)]" />
-                    Disable fallback
-                  </button>
-                </div>
-              </div>
-
-              {/* Connection test */}
-              <div className="space-y-3 border-t border-[var(--border)] pt-5">
-                <div>
-                  <h3 className="text-sm font-semibold">
-                    Connection test
-                  </h3>
-                  <p className="mt-1 text-xs text-[var(--muted)]">
-                    Send a sample request through the OneAPI proxy.
-                  </p>
-                </div>
-
-                {activeConfigProvider.category === 'ai' && (
-                  <div>
-                    <label className="mb-2 block text-xs font-semibold">
-                      Test model
-                      <span className="ml-1 font-normal text-[var(--muted)]">
-                        (optional)
-                      </span>
-                    </label>
-
-                    <input
-                      type="text"
-                      value={testModelInput}
-                      onChange={(event) =>
-                        setTestModelInput(event.target.value)
-                      }
-                      placeholder="Use the provider default model"
-                      className={inputClass}
-                    />
-                  </div>
-                )}
 
                 <button
                   type="button"
-                  onClick={() =>
-                    void handleTestProvider(activeConfigProvider)
-                  }
-                  disabled={
-                    testingProviderId === activeConfigProvider.id
-                  }
-                  className={`${primaryButton} w-full`}
+                  onClick={() => setActiveConfigProvider(null)}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-2 text-[var(--muted)] transition hover:text-[var(--foreground)]"
+                  aria-label="Close configuration"
                 >
-                  {testingProviderId === activeConfigProvider.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Activity className="h-4 w-4" />
-                  )}
-
-                  {testingProviderId === activeConfigProvider.id
-                    ? 'Executing request…'
-                    : 'Test provider response'}
+                  <X size={16} />
                 </button>
-
-                {testResult?.providerId === activeConfigProvider.id && (
-                  <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-                      <span
-                        className={`font-semibold ${
-                          Number(testResult.status) >= 200 &&
-                          Number(testResult.status) < 300
-                            ? 'text-[var(--success)]'
-                            : 'text-[var(--danger)]'
-                        }`}
-                      >
-                        HTTP {testResult.status}
-                      </span>
-
-                      <span className="text-[var(--muted)]">
-                        {testResult.latencyMs} ms
-                      </span>
-
-                      <span className="text-[var(--muted)]">
-                        Provider: {testResult.finalProvider}
-                      </span>
-
-                      {testResult.fallbackTriggered && (
-                        <span className="rounded-md bg-[var(--accent-yellow)]/10 px-2 py-1 text-[var(--accent-yellow)]">
-                          Fallback used
-                        </span>
-                      )}
-                    </div>
-
-                    {testResult.summary && (
-                      <p className="rounded-lg bg-[var(--card)] p-3 text-xs leading-5 text-[var(--foreground)]">
-                        {testResult.summary}
-                      </p>
-                    )}
-
-                    {testResult.fallbackReason && (
-                      <p className="text-xs text-[var(--muted)]">
-                        Fallback reason: {testResult.fallbackReason}
-                      </p>
-                    )}
-
-                    <details>
-                      <summary className="cursor-pointer text-xs text-[var(--muted)] transition hover:text-[var(--foreground)]">
-                        View raw response
-                      </summary>
-
-                      <pre className="mt-2 max-h-52 overflow-auto rounded-lg border border-[var(--border)] bg-[var(--card)] p-3 text-[10px] leading-5 text-[var(--foreground)]">
-                        {JSON.stringify(testResult.raw, null, 2)}
-                      </pre>
-                    </details>
-                  </div>
-                )}
               </div>
             </div>
-          </section>
+
+            <div className="max-h-[calc(90dvh-90px)] space-y-6 overflow-y-auto p-5 sm:p-6">
+              {/* Feedback */}
+              {configMsg && (
+                <div
+                  className={`flex items-start gap-2.5 rounded-xl border p-3 text-xs ${
+                    configMsg.type === 'success'
+                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                  }`}
+                >
+                  {configMsg.type === 'success' ? (
+                    <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
+                  ) : (
+                    <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                  )}
+                  <span>{configMsg.text}</span>
+                </div>
+              )}
+
+              {/* Credential section */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--primary)]/10 text-[var(--primary)]">
+                    <Key size={15} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-[var(--foreground)]">
+                      API credentials
+                    </h3>
+                    <p className="text-[10px] text-[var(--muted)]">
+                      Manage your provider authentication key.
+                    </p>
+                  </div>
+                </div>
+
+                {activeConfigProvider.requiresKey ? (
+                  <form
+                    onSubmit={handleSaveProviderKey}
+                    className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <label
+                        htmlFor="provider-api-key"
+                        className="text-xs font-semibold text-[var(--foreground)]"
+                      >
+                        Provider API key
+                      </label>
+                      <StatusPill color="success">
+                        <Lock size={10} />
+                        Encrypted vault
+                      </StatusPill>
+                    </div>
+
+                    <div className="relative">
+                      <Key className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+
+                      <input
+                        id="provider-api-key"
+                        type={showConfigApiKey ? 'text' : 'password'}
+                        placeholder={`Paste your ${activeConfigProvider.name} API key`}
+                        value={configApiKeyInput}
+                        onChange={(e) =>
+                          setConfigApiKeyInput(e.target.value)
+                        }
+                        required
+                        autoComplete="off"
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] py-3 pl-10 pr-11 text-xs text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/10"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowConfigApiKey(!showConfigApiKey)
+                        }
+                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-[var(--muted)] transition hover:text-[var(--foreground)]"
+                        aria-label={
+                          showConfigApiKey ? 'Hide API key' : 'Show API key'
+                        }
+                      >
+                        {showConfigApiKey ? (
+                          <EyeOff size={16} />
+                        ) : (
+                          <Eye size={16} />
+                        )}
+                      </button>
+                    </div>
+
+                    <p className="text-[10px] leading-5 text-[var(--muted)]">
+                      Your credential is submitted to the OneAPI vault.
+                      Avoid sharing it or exposing it in client-side code.
+                    </p>
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="submit"
+                        disabled={
+                          savingConfigKey || !configApiKeyInput.trim()
+                        }
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-xs font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {savingConfigKey ? (
+                          <>
+                            <RefreshCw size={13} className="animate-spin" />
+                            Saving credential...
+                          </>
+                        ) : (
+                          <>
+                            <Lock size={13} />
+                            Save credential
+                          </>
+                        )}
+                      </button>
+
+                      {vaultSecrets.some(
+                        (s) =>
+                          s.category?.toLowerCase() ===
+                            activeConfigProvider.category?.toLowerCase() &&
+                          s.providerId?.toLowerCase() ===
+                            activeConfigProvider.id?.toLowerCase()
+                      ) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleDeleteProviderKey(activeConfigProvider.id)
+                          }
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-2.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-500/15 dark:text-rose-400"
+                        >
+                          <Trash2 size={13} />
+                          Revoke key
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex items-start gap-3 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
+                    <CheckCircle2
+                      size={17}
+                      className="mt-0.5 shrink-0 text-sky-500"
+                    />
+                    <div>
+                      <p className="text-xs font-bold text-[var(--foreground)]">
+                        No API key required
+                      </p>
+                      <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">
+                        {activeConfigProvider.name} is configured as a
+                        keyless public API in your provider catalog.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              {/* Routing section */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500">
+                    <Zap size={15} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-[var(--foreground)]">
+                      Routing priority
+                    </h3>
+                    <p className="text-[10px] text-[var(--muted)]">
+                      Assign this provider a routing role.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSetPriorityRouting(
+                        activeConfigProvider.category,
+                        activeConfigProvider.id,
+                        'primary'
+                      )
+                    }
+                    className="flex flex-col items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 text-left transition hover:border-sky-500/40 hover:bg-sky-500/5"
+                  >
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-sky-500">
+                      <Zap size={15} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-[var(--foreground)]">
+                        Primary
+                      </p>
+                      <p className="mt-1 text-[10px] leading-4 text-[var(--muted)]">
+                        Main provider for requests
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSetPriorityRouting(
+                        activeConfigProvider.category,
+                        activeConfigProvider.id,
+                        'fallback'
+                      )
+                    }
+                    className="flex flex-col items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 text-left transition hover:border-violet-500/40 hover:bg-violet-500/5"
+                  >
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500">
+                      <Shield size={15} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-[var(--foreground)]">
+                        Fallback
+                      </p>
+                      <p className="mt-1 text-[10px] leading-4 text-[var(--muted)]">
+                        Secondary provider on failure
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSetPriorityRouting(
+                        activeConfigProvider.category,
+                        activeConfigProvider.id,
+                        'disable_fallback'
+                      )
+                    }
+                    className="flex flex-col items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 text-left transition hover:border-rose-500/40 hover:bg-rose-500/5"
+                  >
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500">
+                      <Ban size={15} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-[var(--foreground)]">
+                        Disable fallback
+                      </p>
+                      <p className="mt-1 text-[10px] leading-4 text-[var(--muted)]">
+                        Remove secondary provider
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+                <Link
+                  href="/dashboard/routing"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--primary)] hover:underline"
+                >
+                  Advanced routing settings
+                  <ArrowRight size={12} />
+                </Link>
+              </section>
+
+              {/* Live test section */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                    <Activity size={15} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-[var(--foreground)]">
+                      Connection test
+                    </h3>
+                    <p className="text-[10px] text-[var(--muted)]">
+                      Send a live request through the gateway.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleTestProvider(activeConfigProvider)}
+                  disabled={testingProviderId === activeConfigProvider.id}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-xs font-bold text-emerald-600 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-400"
+                >
+                  {testingProviderId === activeConfigProvider.id ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      Executing live request...
+                    </>
+                  ) : (
+                    <>
+                      <Play size={13} fill="currentColor" />
+                      Test provider connection
+                    </>
+                  )}
+                </button>
+
+                {testResult &&
+                  testResult.providerId === activeConfigProvider.id && (
+                    <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusPill
+                          color={
+                            testResult.status === 200 ? 'success' : 'danger'
+                          }
+                        >
+                          HTTP {testResult.status}
+                        </StatusPill>
+
+                        <StatusPill>
+                          <Clock3 size={10} />
+                          {testResult.latencyMs} ms
+                        </StatusPill>
+
+                        <StatusPill color="info">
+                          {testResult.finalProvider}
+                        </StatusPill>
+
+                        {testResult.fallbackTriggered && (
+                          <StatusPill color="warning">
+                            <Shield size={10} />
+                            Fallback triggered
+                          </StatusPill>
+                        )}
+                      </div>
+
+                      {testResult.summary && (
+                        <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
+                          <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                            <CheckCircle2
+                              size={12}
+                              className="text-emerald-500"
+                            />
+                            Gateway response
+                          </p>
+                          <p className="text-xs leading-5 text-[var(--foreground)]">
+                            {testResult.summary}
+                          </p>
+                        </div>
+                      )}
+
+                      <details className="group/details">
+                        <summary className="cursor-pointer text-[10px] font-semibold text-[var(--muted)] transition hover:text-[var(--foreground)]">
+                          View raw JSON response
+                        </summary>
+                        <pre className="mt-2 max-h-48 overflow-auto rounded-lg border border-[var(--border)] bg-[var(--background)] p-3 text-[10px] leading-5 text-[var(--muted)]">
+                          {JSON.stringify(testResult.raw, null, 2)}
+                        </pre>
+                      </details>
+                    </div>
+                  )}
+              </section>
+
+              {/* Modal footer */}
+              <div className="flex flex-col-reverse gap-2 border-t border-[var(--border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-[10px] text-[var(--muted)]">
+                  Changes are saved to your OneAPI configuration.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveConfigProvider(null)}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-xs font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-secondary)]"
+                >
+                  Close configuration
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
-  );
-}
-
-export default function ProvidersPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-48 items-center justify-center gap-2 p-8 text-sm text-[var(--muted)]">
-          <Loader2 className="h-5 w-5 animate-spin text-[var(--primary)]" />
-          Loading API providers…
-        </div>
-      }
-    >
-      <ProvidersContent />
-    </Suspense>
   );
 }

@@ -1,17 +1,10 @@
+
 'use client';
 
-import React, {
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
-
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-
 import {
+  SlidersHorizontal,
   Zap,
   ShieldCheck,
   RefreshCw,
@@ -32,16 +25,16 @@ import {
   Activity,
   Settings2,
   GitBranch,
+  Lock,
   CircleDot,
   Save,
   X,
+  Gauge,
   Workflow,
   AlertCircle,
-  Loader2,
 } from 'lucide-react';
 
-import { fetchApi, authStorage } from '@/lib/api';
-
+import { fetchApi } from '@/lib/api';
 import {
   PROVIDERS_CATALOG,
   type Category,
@@ -54,8 +47,6 @@ interface RoutingConfigItem {
   fallbackProviderIds?: string[];
   timeoutMs: number;
   retryOnStatusCodes: number[];
-  model?: string;
-  models?: Record<string, string>;
   isCustomized?: boolean;
   updatedAt?: string | null;
 }
@@ -221,22 +212,9 @@ export default function RoutingConfigPage() {
     setLoading(true);
 
     try {
-      const paramProjectId = searchParams.get('project') || searchParams.get('projectId');
-      if (paramProjectId) {
-        authStorage.setProjectId(paramProjectId);
-      }
-
-      const targetProjectId = paramProjectId || authStorage.getProjectId();
-      const routingPath = targetProjectId
-        ? `/api/v1/routing?projectId=${encodeURIComponent(targetProjectId)}`
-        : '/api/v1/routing';
-      const vaultPath = targetProjectId
-        ? `/api/v1/vault?projectId=${encodeURIComponent(targetProjectId)}`
-        : '/api/v1/vault';
-
       const [rulesRes, vaultRes] = await Promise.all([
-        fetchApi(routingPath).catch(() => null),
-        fetchApi(vaultPath).catch(() => null),
+        fetchApi('/api/v1/routing').catch(() => null),
+        fetchApi('/api/v1/vault').catch(() => null),
       ]);
 
       if (rulesRes?.success) {
@@ -259,16 +237,7 @@ export default function RoutingConfigPage() {
 
   useEffect(() => {
     loadData();
-
-    const handleProjectChanged = () => {
-      loadData();
-    };
-    window.addEventListener('oneapi_project_changed', handleProjectChanged);
-
-    return () => {
-      window.removeEventListener('oneapi_project_changed', handleProjectChanged);
-    };
-  }, [searchParams]);
+  }, []);
 
   const showToast = (
     type: 'success' | 'error',
@@ -407,7 +376,6 @@ export default function RoutingConfigPage() {
           fallbackProviderIds: fallbackList,
           timeoutMs: rule.timeoutMs,
           retryOnStatusCodes: rule.retryOnStatusCodes,
-          models: rule.models,
         }),
       });
 
@@ -1532,20 +1500,5 @@ export default function RoutingConfigPage() {
         </Link>
       </div>
     </div>
-  );
-}
-
-export default function RoutingConfigPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="p-8 text-center text-slate-400 flex items-center justify-center gap-2">
-          <Loader2 className="w-5 h-5 animate-spin text-sky-400" />
-          Loading routing configuration...
-        </div>
-      }
-    >
-      <RoutingConfigContent />
-    </Suspense>
   );
 }

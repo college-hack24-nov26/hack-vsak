@@ -2,7 +2,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Zap, ShieldCheck, Activity, Workflow, Code2 } from 'lucide-react';
-import ThemeToggle from '@/app/components/ThemeToggle';
+import ThemeToggle from '../components/ThemeProvider';
 
 export default function AuthLayout({
   children,

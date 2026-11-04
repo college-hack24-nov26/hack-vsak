@@ -1,20 +1,23 @@
 
 'use client';
 
-import React, { useEffect, useState, useRef, Suspense } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
-  Activity,
   BookOpen,
   ChevronLeft,
   ChevronRight,
   Cpu,
+  FolderGit2,
   KeyRound,
   LayoutDashboard,
+  Layers,
+  Loader2,
   LogOut,
   Menu,
   Moon,
+  Plus,
   Settings,
   ShieldCheck,
   SlidersHorizontal,
@@ -23,11 +26,12 @@ import {
   UserCircle,
   X,
 } from 'lucide-react';
-import { useThemeMode } from '../components/ThemeProvider';
+
+import { useTheme } from 'next-themes';
 import { authStorage, fetchApi } from '@/lib/api';
 
-interface ProjectNavItem {
-  slug: string;
+interface NavItem {
+  href: string;
   label: string;
   icon: React.ReactNode;
 }
@@ -36,42 +40,42 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: '/dashboard',
     label: 'Overview',
-    icon: <LayoutDashboard />,
+    icon: <LayoutDashboard size={18} />,
   },
   {
     href: '/dashboard/providers',
     label: 'API Providers',
-    icon: <Cpu />,
+    icon: <Cpu size={18} />,
   },
   {
     href: '/dashboard/routing',
     label: 'Routing & Failover',
-    icon: <SlidersHorizontal />,
+    icon: <SlidersHorizontal size={18} />,
   },
   {
     href: '/dashboard/examples',
     label: 'Live Examples',
-    icon: <Sparkles />,
+    icon: <Sparkles size={18} />,
   },
   {
     href: '/dashboard/keys',
     label: 'API Keys',
-    icon: <KeyRound />,
+    icon: <KeyRound size={18} />,
   },
   {
     href: '/dashboard/docs',
     label: 'Documentation',
-    icon: <BookOpen />,
+    icon: <BookOpen size={18} />,
   },
   {
     href: '/dashboard/profile',
     label: 'Profile',
-    icon: <UserCircle />,
+    icon: <UserCircle size={18} />,
   },
   {
     href: '/dashboard/settings',
     label: 'Settings',
-    icon: <Settings />,
+    icon: <Settings size={18} />,
   },
 ];
 
@@ -82,58 +86,66 @@ function DashboardLayoutContent({
 }) {
   const router = useRouter();
   const pathname = usePathname();
- const { theme, toggleTheme } = useThemeMode();
   const searchParams = useSearchParams();
+ const { theme, setTheme } = useTheme();
 
   const [mounted, setMounted] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
 
-  // Projects State
+  const [user, setUser] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [activeProject, setActiveProject] = useState<any>(null);
-  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
-  const [projectSearch, setProjectSearch] = useState('');
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Quick Create Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [isCreatingProject, setIsCreatingProject] = useState(false);
 
-  // Is current view at Workspace level (no sidebar) or Project level (with 5-item sidebar)
+  const createInputRef = useRef<HTMLInputElement>(null);
+
   const isWorkspaceLevel =
     pathname === '/dashboard/projects' ||
     pathname === '/dashboard/profile';
 
+  const getProjectId = (project: any) =>
+    project?._id || project?.id || null;
+
   const loadProjectsList = async () => {
     try {
       const res = await fetchApi('/api/v1/projects');
-      if (res.success && res.data?.projects) {
-        setProjects(res.data.projects);
 
-        // Check if query param or storage has active project
-        const paramProjectId = searchParams.get('project') || searchParams.get('projectId');
-        const storedActive = authStorage.getActiveProject();
-        const targetId = paramProjectId || storedActive?._id;
+      if (!res.success || !Array.isArray(res.data?.projects)) {
+        return;
+      }
 
-        if (targetId) {
-          const match = res.data.projects.find((p: any) => p._id === targetId || p.id === targetId);
-          if (match) {
-            setActiveProject(match);
-            authStorage.setActiveProject(match);
-            return;
-          }
-        }
+      const projectList = res.data.projects;
+      setProjects(projectList);
 
-        // If on a project page but no project selected, redirect to workspace projects portal
-        if (!targetId && !isWorkspaceLevel) {
-          router.push('/dashboard/projects');
+      const paramProjectId =
+        searchParams.get('project') ||
+        searchParams.get('projectId');
+
+      const storedActive = authStorage.getActiveProject();
+      const targetId =
+        paramProjectId || getProjectId(storedActive);
+
+      if (targetId) {
+        const match = projectList.find(
+          (project: any) => getProjectId(project) === targetId,
+        );
+
+        if (match) {
+          setActiveProject(match);
+          authStorage.setActiveProject(match);
+          return;
         }
       }
-    } catch (err) {
-      console.error('Failed to load projects list:', err);
+
+      if (!targetId && !isWorkspaceLevel) {
+        router.push('/dashboard/projects');
+      }
+    } catch (error) {
+      console.error('Failed to load projects list:', error);
     }
   };
 
@@ -151,10 +163,10 @@ function DashboardLayoutContent({
 
     if (cachedUser) {
       setUser(cachedUser);
-    if (cachedUser) setUser(cachedUser);
+    }
 
-    const paramProjectId = searchParams.get('project') || searchParams.get('projectId');
     const cachedProject = authStorage.getActiveProject();
+
     if (cachedProject) {
       setActiveProject(cachedProject);
     }
@@ -166,65 +178,106 @@ function DashboardLayoutContent({
           authStorage.setUser(res.data.user);
         }
       })
-      .catch((err) => {
-        console.error('Failed to load user profile:', err);
+      .catch((error) => {
+        console.error('Failed to load user profile:', error);
       });
 
     loadProjectsList();
 
-    // Listen to project changed events
-    const handleProjectChanged = (e: any) => {
-      const p = e.detail;
-      setActiveProject(p);
-    };
-    window.addEventListener('oneapi_project_changed', handleProjectChanged);
+    const handleProjectChanged = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const project = customEvent.detail;
 
-    // Close dropdown on click outside
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setProjectDropdownOpen(false);
+      if (project) {
+        setActiveProject(project);
       }
     };
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+
+      if (!target.closest('[data-create-modal]')) {
+        // Modal is intentionally not closed by outside clicks.
+      }
+    };
+
+    window.addEventListener(
+      'oneapi_project_changed',
+      handleProjectChanged,
+    );
+
     document.addEventListener('mousedown', handleClickOutside);
 
     return () => {
-      window.removeEventListener('oneapi_project_changed', handleProjectChanged);
+      window.removeEventListener(
+        'oneapi_project_changed',
+        handleProjectChanged,
+      );
+
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [router, pathname, searchParams]);
 
   const handleSelectProject = (project: any) => {
+    const projectId = getProjectId(project);
+
+    if (!projectId) {
+      alert('Unable to select this project. Project ID is missing.');
+      return;
+    }
+
     authStorage.setActiveProject(project);
     setActiveProject(project);
-    setProjectDropdownOpen(false);
-    window.dispatchEvent(new CustomEvent('oneapi_project_changed', { detail: project }));
 
-    const projId = project._id || project.id;
-    router.push(`/dashboard?project=${projId}`);
+    window.dispatchEvent(
+      new CustomEvent('oneapi_project_changed', {
+        detail: project,
+      }),
+    );
+
+    router.push(`/dashboard?project=${projectId}`);
   };
 
-  const handleQuickCreateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newProjectName.trim()) return;
+  const handleQuickCreateProject = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+
+    const projectName = newProjectName.trim();
+
+    if (!projectName || isCreatingProject) {
+      return;
+    }
 
     setIsCreatingProject(true);
+
     try {
       const res = await fetchApi('/api/v1/projects', {
         method: 'POST',
-        body: JSON.stringify({ name: newProjectName.trim() }),
+        body: JSON.stringify({
+          name: projectName,
+        }),
       });
 
       if (res.success && res.data?.project) {
-        const created = res.data.project;
-        setProjects((prev) => [created, ...prev]);
-        handleSelectProject(created);
+        const createdProject = res.data.project;
+
+        setProjects((previous) => [
+          createdProject,
+          ...previous,
+        ]);
+
         setIsCreateModalOpen(false);
         setNewProjectName('');
+
+        handleSelectProject(createdProject);
       } else {
-        alert(res.error?.message || 'Failed to create project');
+        alert(
+          res.error?.message || 'Failed to create project',
+        );
       }
-    } catch (err: any) {
-      alert(err.message || 'Error creating project');
+    } catch (error: any) {
+      alert(error.message || 'Error creating project');
     } finally {
       setIsCreatingProject(false);
     }
@@ -236,18 +289,42 @@ function DashboardLayoutContent({
         method: 'POST',
       });
     } catch {
-      // Continue with local logout.
+      // Continue with local logout if the API is unavailable.
     }
 
     authStorage.clear();
     router.push('/login');
   };
 
+  const closeCreateModal = () => {
+    if (isCreatingProject) return;
+
+    setIsCreateModalOpen(false);
+    setNewProjectName('');
+  };
+
+  useEffect(() => {
+    if (isCreateModalOpen) {
+      createInputRef.current?.focus();
+    }
+  }, [isCreateModalOpen]);
+
   if (!mounted) {
     return (
-      <div className="dashboard-loading">
-        <div className="dashboard-loading-logo">⚡</div>
-        <p>Initializing OneAPI workspace...</p>
+      <div className="min-h-screen bg-[#090d16] flex items-center justify-center text-slate-400">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white text-xl shadow-lg shadow-sky-500/20 animate-pulse">
+            ⚡
+          </div>
+
+          <p className="text-sm font-medium">
+            Initializing OneAPI workspace...
+          </p>
+
+          <div className="w-32 h-1 rounded-full bg-slate-800 overflow-hidden">
+            <div className="h-full w-1/2 rounded-full bg-sky-500 animate-pulse" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -270,139 +347,179 @@ function DashboardLayoutContent({
         .toUpperCase()
     : 'DV';
 
-  // Filter projects inside dropdown
-  const filteredProjectsDropdown = projects.filter(
-    (p) =>
-      p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
-      p.slug.toLowerCase().includes(projectSearch.toLowerCase())
-  );
+  const activeProjectName =
+    activeProject?.name || 'Select Project';
 
-  // =========================================================================
-  // VIEW 1: WORKSPACE LEVEL (NO SIDEBAR - ONLY HEADER)
-  // Used on /dashboard/projects and /dashboard/profile
-  // =========================================================================
+  // ============================================================
+  // WORKSPACE LEVEL
+  // Projects and Profile pages use a clean header without sidebar.
+  // ============================================================
+
   if (isWorkspaceLevel) {
     return (
       <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans">
-        {/* Workspace Clean Top Header Only (NO SIDEBAR) */}
-        <header className="h-16 border-b border-slate-800/80 bg-[#0b0f19]/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
-          <div className="flex items-center gap-6">
-            {/* Brand Logo */}
-            <Link href="/dashboard/projects" className="flex items-center gap-2.5">
-              <span className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white font-black text-base shadow-md shadow-sky-500/20">
-                ⚡
-              </span>
-              <span className="text-lg font-bold tracking-tight text-white">
-                One<span className="text-sky-400">API</span>
-              </span>
-            </Link>
-
-            {/* Header Navigation */}
-            <nav className="flex items-center gap-2">
+        <header className="sticky top-0 z-40 h-16 shrink-0 border-b border-slate-800/80 bg-[#0b0f19]/90 backdrop-blur-xl">
+          <div className="h-full max-w-[1600px] mx-auto px-4 sm:px-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-6">
               <Link
                 href="/dashboard/projects"
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  pathname === '/dashboard/projects'
-                    ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                className="flex items-center gap-2.5 shrink-0"
+              >
+                <span className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-sky-500/20">
+                  ⚡
+                </span>
+
+                <span className="text-lg font-bold tracking-tight text-white">
+                  One<span className="text-sky-400">API</span>
+                </span>
+              </Link>
+
+              <div className="hidden sm:block h-7 w-px bg-slate-800" />
+
+              <nav className="hidden sm:flex items-center">
+                <Link
+                  href="/dashboard/projects"
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${
+                    pathname === '/dashboard/projects'
+                      ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  <FolderGit2 size={16} />
+                  Projects
+                </Link>
+              </nav>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-500 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-sky-600/15 transition-all"
+              >
+                <Plus size={16} />
+                <span className="hidden xs:inline">New Project</span>
+                <span className="xs:hidden">New</span>
+              </button>
+
+              <Link
+                href="/dashboard/profile"
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs sm:text-sm font-medium transition-all ${
+                  pathname === '/dashboard/profile'
+                    ? 'border-sky-500/30 bg-sky-500/10 text-sky-300'
+                    : 'border-slate-800 bg-[#0f172a] text-slate-300 hover:border-slate-700 hover:text-white'
                 }`}
               >
-                <FolderGit2 className="w-3.5 h-3.5" />
-                <span>Projects</span>
+                <span className="w-6 h-6 rounded-lg bg-sky-500/15 text-sky-400 flex items-center justify-center text-xs font-bold">
+                  {initials.slice(0, 1)}
+                </span>
+
+                <span className="hidden md:inline max-w-32 truncate">
+                  {user?.name || 'Profile'}
+                </span>
               </Link>
-            </nav>
-          </div>
 
-          {/* Right Actions: Create Project, Profile, Logout */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-sky-600/20 transition-all cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>New Project</span>
-            </button>
-
-            <Link
-              href="/dashboard/profile"
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                pathname === '/dashboard/profile'
-                  ? 'bg-sky-500/15 text-sky-300 border-sky-500/40 shadow-sm'
-                  : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <div className="w-5 h-5 rounded-md bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold text-[10px]">
-                {user?.name ? user.name.slice(0, 1).toUpperCase() : 'U'}
-              </div>
-              <span className="hidden sm:inline">{user?.name || 'Profile'}</span>
-            </Link>
-
-            <button
-              onClick={handleLogout}
-              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl cursor-pointer transition-colors"
-              title="Sign Out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                title="Sign out"
+                aria-label="Sign out"
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+              >
+                <LogOut size={17} />
+              </button>
+            </div>
           </div>
         </header>
 
-        {/* Main Content Area (Full Width, Centered) */}
-        <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8">
           {children}
         </main>
 
-        {/* Modal: Quick Create Project */}
         {isCreateModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-sky-400" />
-                  Create New Project
-                </h3>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div
+              data-create-modal
+              className="w-full max-w-md rounded-2xl border border-slate-800 bg-[#0f172a] shadow-2xl shadow-black/40 overflow-hidden"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 px-6 py-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center">
+                    <Layers size={19} className="text-sky-400" />
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-bold text-white">
+                      Create New Project
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Set up a new API workspace
+                    </p>
+                  </div>
+                </div>
+
                 <button
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="text-slate-500 hover:text-white"
+                  type="button"
+                  onClick={closeCreateModal}
+                  disabled={isCreatingProject}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
                 >
-                  <X className="w-4 h-4" />
+                  <X size={17} />
                 </button>
               </div>
 
-              <form onSubmit={handleQuickCreateProject} className="space-y-4">
+              <form
+                onSubmit={handleQuickCreateProject}
+                className="p-6 space-y-5"
+              >
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-300 mb-2">
                     Project Name
                   </label>
+
                   <input
+                    ref={createInputRef}
                     type="text"
                     required
-                    placeholder="e.g. Chatbot Router, Mobile Backend"
+                    maxLength={80}
+                    placeholder="e.g. Chatbot Router"
                     value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-sky-500/60"
+                    onChange={(event) =>
+                      setNewProjectName(event.target.value)
+                    }
+                    className="w-full rounded-xl border border-slate-800 bg-[#090d16] px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all focus:border-sky-500/60 focus:ring-2 focus:ring-sky-500/10"
                   />
+
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    Give your project a clear and recognizable name.
+                  </p>
                 </div>
 
-                <div className="flex items-center justify-end gap-2.5 pt-2">
+                <div className="flex items-center justify-end gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setIsCreateModalOpen(false)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white"
+                    onClick={closeCreateModal}
+                    disabled={isCreatingProject}
+                    className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white transition-all disabled:opacity-50"
                   >
                     Cancel
                   </button>
+
                   <button
                     type="submit"
-                    disabled={isCreatingProject}
-                    className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-sky-600/20"
+                    disabled={
+                      isCreatingProject || !newProjectName.trim()
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-sky-600/15 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isCreatingProject ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 size={15} className="animate-spin" />
                     ) : (
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus size={15} />
                     )}
-                    <span>Create Project</span>
+                    {isCreatingProject
+                      ? 'Creating...'
+                      : 'Create Project'}
                   </button>
                 </div>
               </form>
@@ -413,46 +530,61 @@ function DashboardLayoutContent({
     );
   }
 
-  // =========================================================================
-  // VIEW 2: PROJECT LEVEL (WITH 5-ITEM SIDEBAR & SEARCH PARAMS)
-  // Shows only: Overview, API Providers, Routing & Failover, API Keys, Settings
-  // =========================================================================
-  return (
-    <div className="dashboard-shell">
+  // ============================================================
+  // PROJECT LEVEL
+  // Main dashboard with responsive sidebar.
+  // ============================================================
 
+  return (
+    <div className="min-h-screen bg-[#090d16] text-slate-100 font-sans">
       {/* Mobile backdrop */}
       {mobileMenuOpen && (
         <button
           type="button"
           aria-label="Close navigation"
           onClick={() => setMobileMenuOpen(false)}
-          className="dashboard-backdrop"
+          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden"
         />
       )}
 
       {/* Sidebar */}
       <aside
-        className={`dashboard-sidebar ${
-          sidebarCollapsed ? 'is-collapsed' : ''
-        } ${mobileMenuOpen ? 'mobile-open' : ''}`}
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-slate-800/80 bg-[#0b0f19] transition-all duration-300 ${
+          sidebarCollapsed ? 'w-[76px]' : 'w-[260px]'
+        } ${
+          mobileMenuOpen
+            ? 'translate-x-0'
+            : '-translate-x-full lg:translate-x-0'
+        }`}
       >
         {/* Brand */}
-        <div className="dashboard-brand">
-          <Link href="/dashboard" className="dashboard-brand-link">
-            <span className="dashboard-brand-mark">⚡</span>
+        <div className="h-16 shrink-0 flex items-center justify-between border-b border-slate-800/80 px-4">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-3 min-w-0"
+          >
+            <span className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-sky-500/20">
+              ⚡
+            </span>
 
             {!sidebarCollapsed && (
-              <span className="dashboard-brand-name">
-                One<span>API</span>
+              <span className="text-lg font-bold tracking-tight text-white whitespace-nowrap">
+                One<span className="text-sky-400">API</span>
               </span>
             )}
           </Link>
 
           <button
             type="button"
-            className="dashboard-icon-button sidebar-collapse"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={() =>
+              setSidebarCollapsed((previous) => !previous)
+            }
+            title={
+              sidebarCollapsed
+                ? 'Expand sidebar'
+                : 'Collapse sidebar'
+            }
+            className="hidden lg:flex w-8 h-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-all"
           >
             {sidebarCollapsed ? (
               <ChevronRight size={17} />
@@ -463,21 +595,23 @@ function DashboardLayoutContent({
 
           <button
             type="button"
-            className="dashboard-icon-button mobile-close"
             onClick={() => setMobileMenuOpen(false)}
             aria-label="Close sidebar"
+            className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
           >
             <X size={19} />
           </button>
         </div>
 
         {/* Navigation */}
-        <div className="dashboard-nav-section">
+        <div className="flex-1 overflow-y-auto px-3 py-6">
           {!sidebarCollapsed && (
-            <p className="dashboard-nav-label">WORKSPACE</p>
+            <p className="px-3 mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+              Workspace
+            </p>
           )}
 
-          <nav className="dashboard-navigation">
+          <nav className="space-y-1">
             {NAV_ITEMS.map((item) => {
               const isActive =
                 item.href === '/dashboard'
@@ -489,23 +623,39 @@ function DashboardLayoutContent({
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  title={sidebarCollapsed ? item.label : undefined}
-                  className={`dashboard-nav-link ${
-                    isActive ? 'active' : ''
+                  title={
+                    sidebarCollapsed ? item.label : undefined
+                  }
+                  className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20 shadow-sm shadow-sky-500/5'
+                      : 'border border-transparent text-slate-400 hover:bg-slate-800/60 hover:text-slate-100'
+                  } ${
+                    sidebarCollapsed
+                      ? 'justify-center px-0'
+                      : ''
                   }`}
                 >
-                  <span className="dashboard-nav-icon">
+                  <span
+                    className={`shrink-0 transition-colors ${
+                      isActive
+                        ? 'text-sky-400'
+                        : 'text-slate-500 group-hover:text-slate-200'
+                    }`}
+                  >
                     {item.icon}
                   </span>
 
                   {!sidebarCollapsed && (
-                    <span className="dashboard-nav-text">
-                      {item.label}
-                    </span>
-                  )}
+                    <>
+                      <span className="truncate">
+                        {item.label}
+                      </span>
 
-                  {isActive && !sidebarCollapsed && (
-                    <span className="dashboard-nav-indicator" />
+                      {isActive && (
+                        <span className="absolute right-3 w-1.5 h-1.5 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.7)]" />
+                      )}
+                    </>
                   )}
                 </Link>
               );
@@ -514,23 +664,40 @@ function DashboardLayoutContent({
         </div>
 
         {/* Sidebar bottom */}
-        <div className="dashboard-sidebar-bottom">
-          <div className="dashboard-sidebar-status">
-            <span className="dashboard-status-indicator" />
+        <div className="shrink-0 border-t border-slate-800/80 p-3">
+          <div
+            className={`flex items-center gap-2 px-3 py-2.5 mb-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10 ${
+              sidebarCollapsed ? 'justify-center px-0' : ''
+            }`}
+            title="All systems operational"
+          >
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+            </span>
+
             {!sidebarCollapsed && (
-              <span>All systems operational</span>
+              <span className="text-[11px] font-medium text-emerald-400">
+                All systems operational
+              </span>
             )}
           </div>
 
-          <div className="dashboard-user">
-            <div className="dashboard-avatar">{initials}</div>
+          <div
+            className={`flex items-center gap-3 rounded-xl p-2 hover:bg-slate-800/50 transition-colors ${
+              sidebarCollapsed ? 'justify-center' : ''
+            }`}
+          >
+            <div className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-sky-500/20 to-blue-600/20 border border-sky-500/20 flex items-center justify-center text-xs font-bold text-sky-300">
+              {initials}
+            </div>
 
             {!sidebarCollapsed && (
-              <div className="dashboard-user-info">
-                <p className="dashboard-user-name">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-slate-200 truncate">
                   {user?.name || 'Developer'}
                 </p>
-                <p className="dashboard-user-email">
+                <p className="text-[10px] text-slate-500 truncate mt-0.5">
                   {user?.email || 'dev@oneapi.io'}
                 </p>
               </div>
@@ -538,129 +705,203 @@ function DashboardLayoutContent({
 
             <button
               type="button"
-              className="dashboard-logout"
               onClick={handleLogout}
               title="Sign out"
               aria-label="Sign out"
+              className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
             >
-              <LogOut size={17} />
+              <LogOut size={16} />
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Main content */}
-      <div className="dashboard-main">
+      {/* Main area */}
+      <div
+        className={`min-h-screen flex flex-col transition-all duration-300 ${
+          sidebarCollapsed ? 'lg:ml-[76px]' : 'lg:ml-[260px]'
+        }`}
+      >
+        {/* Topbar */}
+        <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-slate-800/80 bg-[#0b0f19]/85 backdrop-blur-xl">
+          <div className="h-full px-4 sm:px-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label="Open navigation"
+                className="lg:hidden w-9 h-9 shrink-0 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+              >
+                <Menu size={20} />
+              </button>
 
-        {/* Header */}
-        <header className="dashboard-topbar">
-          <div className="dashboard-topbar-left">
-            <button
-              type="button"
-              className="dashboard-icon-button mobile-menu"
-              onClick={() => setMobileMenuOpen(true)}
-              aria-label="Open navigation"
-            >
-              <Menu size={20} />
-            </button>
+              <div className="min-w-0">
+                <div className="hidden sm:flex items-center gap-2 text-[11px] text-slate-500 mb-0.5">
+                  <span>Workspace</span>
+                  <ChevronRight size={12} />
+                  <span className="text-slate-400">
+                    {pageTitle}
+                  </span>
+                </div>
 
-            <div>
-              <div className="dashboard-breadcrumb">
-                <span>Workspace</span>
-                <span className="breadcrumb-separator">/</span>
-                <span className="breadcrumb-current">{pageTitle}</span>
+                <h1 className="text-sm sm:text-base font-bold text-white truncate">
+                  {pageTitle}
+                </h1>
               </div>
-
-              <h1 className="dashboard-page-title">{pageTitle}</h1>
             </div>
-          </div>
 
-          <div className="dashboard-topbar-actions">
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Active project indicator */}
+              {activeProject && (
+                <div
+                  className="hidden md:flex items-center gap-2 max-w-48 rounded-xl border border-slate-800 bg-[#0f172a] px-3 py-2"
+                  title={activeProjectName}
+                >
+                  <FolderGit2
+                    size={14}
+                    className="text-sky-400 shrink-0"
+                  />
+                  <span className="text-xs font-medium text-slate-300 truncate">
+                    {activeProjectName}
+                  </span>
+                </div>
+              )}
 
-            {/* Theme button */}
-       <button
+              {/* Theme toggle */}
+             <button
   type="button"
-  className="dashboard-theme-button"
-  onClick={toggleTheme}
+  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
   title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
   aria-label="Toggle theme"
+  className="w-9 h-9 rounded-xl flex items-center justify-center border border-slate-800 bg-[#0f172a] text-slate-400 hover:text-sky-400 hover:border-sky-500/30 transition-all"
 >
   {theme === 'dark' ? (
-    <Sun size={18} />
+    <Sun size={17} />
   ) : (
-    <Moon size={18} />
+    <Moon size={17} />
   )}
 </button>
 
-            <div className="dashboard-workspace-badge">
-              <ShieldCheck size={15} />
-              <span>Developer Workspace</span>
-            </div>
+              {/* Workspace badge */}
+              <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-800 bg-[#0f172a] px-3 py-2">
+                <ShieldCheck
+                  size={14}
+                  className="text-sky-400"
+                />
+                <span className="text-[11px] font-semibold text-slate-300">
+                  Developer Workspace
+                </span>
+              </div>
 
-            <div className="dashboard-gateway-status">
-              <span className="dashboard-status-indicator" />
-              <span>Gateway Online</span>
+              {/* Gateway status */}
+              <div className="hidden xl:flex items-center gap-2 rounded-xl border border-emerald-500/15 bg-emerald-500/5 px-3 py-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+                <span className="text-[11px] font-semibold text-emerald-400">
+                  Gateway Online
+                </span>
+              </div>
             </div>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="dashboard-page-content">
+        <main className="flex-1 w-full min-w-0 p-4 sm:p-6 lg:p-8">
           {children}
         </main>
       </div>
 
-      {/* Quick Create Project Modal from Header */}
+      {/* Create Project Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Layers className="w-4 h-4 text-sky-400" />
-                New Project
-              </h3>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div
+            data-create-modal
+            className="w-full max-w-md rounded-2xl border border-slate-800 bg-[#0f172a] shadow-2xl shadow-black/40 overflow-hidden"
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 px-6 py-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center">
+                  <Layers
+                    size={19}
+                    className="text-sky-400"
+                  />
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-bold text-white">
+                    Create New Project
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Set up a new API workspace
+                  </p>
+                </div>
+              </div>
+
               <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="text-slate-500 hover:text-white"
+                type="button"
+                onClick={closeCreateModal}
+                disabled={isCreatingProject}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
               >
-                <X className="w-4 h-4" />
+                <X size={17} />
               </button>
             </div>
 
-            <form onSubmit={handleQuickCreateProject} className="space-y-4">
+            <form
+              onSubmit={handleQuickCreateProject}
+              className="p-6 space-y-5"
+            >
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-semibold text-slate-300 mb-2">
                   Project Name
                 </label>
+
                 <input
+                  ref={createInputRef}
                   type="text"
                   required
-                  placeholder="e.g. Chatbot Router, Mobile Backend"
+                  maxLength={80}
+                  placeholder="e.g. Chatbot Router"
                   value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-sky-500/50"
+                  onChange={(event) =>
+                    setNewProjectName(event.target.value)
+                  }
+                  className="w-full rounded-xl border border-slate-800 bg-[#090d16] px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all focus:border-sky-500/60 focus:ring-2 focus:ring-sky-500/10"
                 />
+
+                <p className="text-[11px] text-slate-500 mt-2">
+                  Give your project a clear and recognizable name.
+                </p>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white"
+                  onClick={closeCreateModal}
+                  disabled={isCreatingProject}
+                  className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  disabled={isCreatingProject}
-                  className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-sky-600/20"
+                  disabled={
+                    isCreatingProject || !newProjectName.trim()
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-sky-600/15 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCreatingProject ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <Loader2
+                      size={15}
+                      className="animate-spin"
+                    />
                   ) : (
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus size={15} />
                   )}
-                  <span>Create Project</span>
+
+                  {isCreatingProject
+                    ? 'Creating...'
+                    : 'Create Project'}
                 </button>
               </div>
             </form>
@@ -681,15 +922,18 @@ export default function DashboardLayout({
       fallback={
         <div className="min-h-screen bg-[#090d16] flex items-center justify-center text-slate-400 text-sm">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white font-black text-base animate-pulse">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-sky-500/20 animate-pulse">
               ⚡
             </div>
-            <p>Loading Workspace...</p>
+
+            <p>Loading OneAPI Workspace...</p>
           </div>
         </div>
       }
     >
-      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+      <DashboardLayoutContent>
+        {children}
+      </DashboardLayoutContent>
     </Suspense>
   );
 }
