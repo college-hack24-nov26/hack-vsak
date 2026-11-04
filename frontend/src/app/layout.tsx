@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   title: 'OneAPI — Enterprise Multi-Provider Proxy Gateway',
   description:
     'Abstract and unify third-party providers with automatic failover.',
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({

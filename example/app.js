@@ -14,7 +14,13 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_CONFIG = {
-  BASE_URL: 'http://localhost:5000',
+  BASE_URL:
+    (typeof window !== 'undefined' &&
+      (window.ONEAPI_CONFIG?.BASE_URL ||
+        window.ONEAPI_BASE_URL ||
+        window.API_BASE_URL ||
+        localStorage.getItem('oneapi_base_url'))) ||
+    'http://localhost:5000',
   PROVIDER: 'auto',
   MODEL: 'auto',
 };

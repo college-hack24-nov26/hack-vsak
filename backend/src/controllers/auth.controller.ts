@@ -769,7 +769,13 @@ export async function listApiKeys(req: AuthenticatedRequest, res: Response, next
     const filter: Record<string, any> = { userId: user._id };
     if (rawProjectId && rawProjectId !== 'all') {
       if (mongoose.Types.ObjectId.isValid(rawProjectId)) {
-        filter.projectId = new mongoose.Types.ObjectId(rawProjectId);
+        const projId = new mongoose.Types.ObjectId(rawProjectId);
+        const projectDoc = await Project.findOne({ _id: projId, userId: user._id });
+        if (projectDoc?.isDefault) {
+          filter.$or = [{ projectId: projId }, { projectId: { $exists: false } }, { projectId: null }];
+        } else {
+          filter.projectId = projId;
+        }
       }
     }
 

@@ -79,6 +79,13 @@ export async function getDashboardOverview(
               isDefault: req.project.isDefault,
             }
           : null,
+        totalRequests,
+        totalFallbacks,
+        fallbackRatePercentage: fallbackRate,
+        averageLatencyMs,
+        activeKeysCount,
+        configuredVaultCount: vaultCount,
+        totalAvailableProviders: providerRegistry.list().length,
         metrics: {
           totalRequests,
           totalFallbacks,

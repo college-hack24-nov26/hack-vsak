@@ -94,6 +94,15 @@ export default function ApiKeysPage() {
 
   useEffect(() => {
     loadData();
+
+    const handleProjectChanged = () => {
+      loadData();
+    };
+
+    window.addEventListener('oneapi_project_changed', handleProjectChanged);
+    return () => {
+      window.removeEventListener('oneapi_project_changed', handleProjectChanged);
+    };
   }, [loadData]);
 
   const toggleRevealKey = (keyId: string) => {

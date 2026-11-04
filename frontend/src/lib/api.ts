@@ -3,7 +3,10 @@
  */
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  process.env.NEXT_PUBLIC_BASE_URL ||
+  'http://localhost:5000';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -95,6 +98,9 @@ export async function fetchApi<T = any>(
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
     ...(options.headers as Record<string, string>),
   };
 
@@ -115,10 +121,20 @@ export async function fetchApi<T = any>(
   try {
     const res = await fetch(url, {
       ...options,
+      cache: 'no-store',
       headers,
     });
 
-    const data: ApiResponse<T> = await res.json();
+    if (res.status === 204) {
+      return { success: true } as ApiResponse<T>;
+    }
+
+    const text = await res.text();
+    if (!text || !text.trim()) {
+      return { success: res.ok } as ApiResponse<T>;
+    }
+
+    const data: ApiResponse<T> = JSON.parse(text);
     return data;
   } catch (err: any) {
     return {

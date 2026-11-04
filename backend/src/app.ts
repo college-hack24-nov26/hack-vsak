@@ -26,6 +26,24 @@ export function createApp(): Application {
   // 1. Trust proxy for reverse proxies / load balancers
   app.set('trust proxy', 1);
 
+  // Disable etag generation completely to eliminate 304 Not Modified responses on dynamic data
+  app.set('etag', false);
+
+  // 1.5. Prevent 304 Not Modified & HTTP Caching on all API routes
+  app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+    // Strip conditional request headers so Express never evaluates 304 freshness
+    delete req.headers['if-none-match'];
+    delete req.headers['if-modified-since'];
+
+    // Enforce immediate cache invalidation across all browsers and proxies
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+
+    next();
+  });
+
   // 2. Universal CORS & Preflight Handler: Permits ANY origin, method, and header (zero CORS errors)
   app.use((req: Request, res: Response, next: NextFunction) => {
     const origin = req.headers.origin;

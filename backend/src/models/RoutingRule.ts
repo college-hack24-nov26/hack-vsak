@@ -1,7 +1,7 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 import type { ProviderCategory } from './VaultSecret.js';
 
-export interface IRoutingRule extends Document {
+export interface IRoutingRule extends Omit<Document, 'model'> {
   _id: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
   projectId?: mongoose.Types.ObjectId;

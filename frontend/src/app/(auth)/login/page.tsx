@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -60,22 +59,21 @@ export default function LoginPage() {
   };
 
   const inputClass =
-    'w-full h-11 pl-10 pr-4 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10';
+    'w-full h-11 pl-10 pr-4 bg-[var(--surface-input)] rounded-xl text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none transition-all focus:ring-2 focus:ring-[var(--primary)]/20';
 
   return (
-    <div className="w-full max-w-[440px] mx-auto">
-
+    <div className="w-full max-w-[440px] mx-auto text-[var(--foreground)]">
       {/* Header */}
       <div className="mb-8">
-        <div className="w-11 h-11 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center mb-5">
-          <LogIn className="w-5 h-5 text-blue-600" />
-        </div>
+        {/* <div className="w-11 h-11 bg-[var(--primary)]/15 text-[var(--primary)] rounded-xl flex items-center justify-center mb-5">
+          <LogIn className="w-5 h-5" />
+        </div> */}
 
-        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
+        <h1 className="text-[26px] font-bold tracking-tight text-[var(--foreground)]">
           Welcome back
         </h1>
 
-        <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+        <p className="text-sm text-[var(--muted)] mt-2 leading-relaxed">
           Sign in to access your OneAPI developer workspace.
         </p>
       </div>
@@ -84,7 +82,7 @@ export default function LoginPage() {
       {error && (
         <div
           role="alert"
-          className="mb-5 px-4 py-3 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm"
+          className="mb-5 px-4 py-3 rounded-xl bg-[var(--danger)]/10 text-[var(--danger)] text-sm font-medium"
         >
           {error}
         </div>
@@ -92,15 +90,14 @@ export default function LoginPage() {
 
       {/* Login form */}
       <form onSubmit={handleLogin} className="space-y-5">
-
         {/* Email */}
         <div>
-          <label className="block text-[13px] font-medium text-slate-700 mb-1.5">
+          <label className="block text-[13px] font-medium text-[var(--foreground)] mb-1.5">
             Email address
           </label>
 
           <div className="relative">
-            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted)]" />
 
             <input
               type="email"
@@ -117,20 +114,20 @@ export default function LoginPage() {
         {/* Password */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[13px] font-medium text-slate-700">
+            <label className="text-[13px] font-medium text-[var(--foreground)]">
               Password
             </label>
 
             <Link
               href="/forgot-password"
-              className="text-xs font-medium text-blue-600 hover:text-blue-700"
+              className="text-xs font-medium text-[var(--primary)] hover:underline"
             >
               Forgot password?
             </Link>
           </div>
 
           <div className="relative">
-            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted)]" />
 
             <input
               type={showPassword ? 'text' : 'password'}
@@ -146,7 +143,7 @@ export default function LoginPage() {
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--foreground)]"
             >
               {showPassword ? (
                 <EyeOff className="w-4 h-4" />
@@ -161,7 +158,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          className="w-full h-11 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2 shadow-md shadow-[var(--primary)]/20 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {loading ? (
             'Signing in...'
@@ -175,19 +172,19 @@ export default function LoginPage() {
       </form>
 
       {/* Signup link */}
-      <div className="mt-7 text-center text-sm text-slate-500">
-        Don't have an account?{' '}
+      <div className="mt-7 text-center text-sm text-[var(--muted)]">
+        Don&apos;t have an account?{' '}
         <Link
           href="/signup"
-          className="text-blue-600 font-semibold hover:text-blue-700"
+          className="text-[var(--primary)] font-semibold hover:underline"
         >
           Create an account
         </Link>
       </div>
 
       {/* Security */}
-      <div className="mt-8 pt-5 border-t border-slate-100 flex items-center justify-center gap-2 text-xs text-slate-400">
-        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+      <div className="mt-8 pt-5 flex items-center justify-center gap-2 text-xs text-[var(--muted)]">
+        <ShieldCheck className="w-4 h-4 text-[var(--success)]" />
         Secure authentication powered by OneAPI
       </div>
     </div>

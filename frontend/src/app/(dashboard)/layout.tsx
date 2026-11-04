@@ -3,8 +3,10 @@
 
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
+  ArrowLeft,
   BookOpen,
   ChevronLeft,
   ChevronRight,
@@ -28,6 +30,7 @@ import {
 } from 'lucide-react';
 
 import { useTheme } from 'next-themes';
+import ThemeToggle from '../components/ThemeToggle';
 import { authStorage, fetchApi } from '@/lib/api';
 
 interface NavItem {
@@ -53,24 +56,9 @@ const NAV_ITEMS: NavItem[] = [
     icon: <SlidersHorizontal size={18} />,
   },
   {
-    href: '/dashboard/examples',
-    label: 'Live Examples',
-    icon: <Sparkles size={18} />,
-  },
-  {
     href: '/dashboard/keys',
     label: 'API Keys',
     icon: <KeyRound size={18} />,
-  },
-  {
-    href: '/dashboard/docs',
-    label: 'Documentation',
-    icon: <BookOpen size={18} />,
-  },
-  {
-    href: '/dashboard/profile',
-    label: 'Profile',
-    icon: <UserCircle size={18} />,
   },
   {
     href: '/dashboard/settings',
@@ -313,8 +301,15 @@ function DashboardLayoutContent({
     return (
       <div className="min-h-screen bg-[#080b12] flex items-center justify-center text-slate-400">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-violet-500 to-indigo-600 flex items-center justify-center text-white text-xl shadow-lg shadow-violet-500/20 animate-pulse">
-            ⚡
+          <div className="w-11 h-11 rounded-xl overflow-hidden flex items-center justify-center shadow-lg shadow-[var(--primary)]/20 animate-pulse">
+            <Image
+              src="/logo.png"
+              alt="OneAPI Logo"
+              width={44}
+              height={44}
+              className="w-full h-full object-contain"
+              priority
+            />
           </div>
 
           <p className="text-sm font-medium">
@@ -357,36 +352,55 @@ function DashboardLayoutContent({
 
   if (isWorkspaceLevel) {
     return (
-      <div className="min-h-screen bg-[#080b12] text-slate-100 flex flex-col font-sans">
-        <header className="sticky top-0 z-40 h-16 shrink-0 border-b border-slate-700/80/70 bg-[#0d111b]/90 backdrop-blur-xl">
+      <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] flex flex-col font-sans transition-colors duration-200">
+        <header className="sticky top-0 z-40 h-16 shrink-0 bg-[var(--surface)] text-[var(--foreground)] backdrop-blur-xl shadow-sm">
           <div className="h-full max-w-[1600px] mx-auto px-4 sm:px-6 flex items-center justify-between gap-4">
             <div className="flex items-center gap-6">
               <Link
                 href="/dashboard/projects"
                 className="flex items-center gap-2.5 shrink-0"
               >
-                <span className="w-9 h-9 rounded-xl bg-gradient-to-tr from-violet-500 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-violet-500/20">
-                  ⚡
+                <span className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center shrink-0 shadow-md shadow-[var(--primary)]/20">
+                  <Image
+                    src="/logo.png"
+                    alt="OneAPI Logo"
+                    width={36}
+                    height={36}
+                    className="w-full h-full object-contain"
+                    priority
+                  />
                 </span>
 
-                <span className="text-lg font-bold tracking-tight text-white">
-                  One<span className="text-violet-300">API</span>
+                <span className="text-lg font-bold tracking-tight text-[var(--foreground)]">
+                  One<span className="text-[var(--primary)]">API</span>
                 </span>
               </Link>
 
-              <div className="hidden sm:block h-7 w-px bg-slate-800" />
+              <div className="hidden sm:block h-7 w-px bg-[var(--surface-secondary)]" />
 
-              <nav className="hidden sm:flex items-center">
+              <nav className="hidden sm:flex items-center gap-2">
                 <Link
                   href="/dashboard/projects"
                   className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${
                     pathname === '/dashboard/projects'
-                      ? 'bg-violet-500/10 text-violet-300 border border-violet-400/20'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      ? 'bg-[var(--primary)]/10 text-[var(--primary)]'
+                      : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-secondary)]'
                   }`}
                 >
                   <FolderGit2 size={16} />
                   Projects
+                </Link>
+
+                <Link
+                  href="/dashboard/profile"
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${
+                    pathname === '/dashboard/profile'
+                      ? 'bg-[var(--primary)]/10 text-[var(--primary)]'
+                      : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-secondary)]'
+                  }`}
+                >
+                  <UserCircle size={16} />
+                  Profile
                 </Link>
               </nav>
             </div>
@@ -395,7 +409,7 @@ function DashboardLayoutContent({
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-500 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-violet-600/20 transition-all"
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-md shadow-[var(--primary)]/20 transition-all cursor-pointer"
               >
                 <Plus size={16} />
                 <span className="hidden xs:inline">New Project</span>
@@ -404,13 +418,13 @@ function DashboardLayoutContent({
 
               <Link
                 href="/dashboard/profile"
-                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs sm:text-sm font-medium transition-all ${
+                className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium transition-all ${
                   pathname === '/dashboard/profile'
-                    ? 'border-violet-400/30 bg-violet-500/10 text-violet-300'
-                    : 'border-slate-700/80 bg-[#121a2a] text-slate-300 hover:border-slate-700 hover:text-white'
+                    ? 'bg-[var(--primary)]/10 text-[var(--primary)]'
+                    : 'bg-[var(--surface-secondary)] text-[var(--foreground)] hover:bg-[var(--surface-secondary)]/80'
                 }`}
               >
-                <span className="w-6 h-6 rounded-lg bg-violet-500/15 text-violet-300 flex items-center justify-center text-xs font-bold">
+                <span className="w-6 h-6 rounded-lg bg-[var(--primary)] text-white flex items-center justify-center text-xs font-bold">
                   {initials.slice(0, 1)}
                 </span>
 
@@ -419,12 +433,14 @@ function DashboardLayoutContent({
                 </span>
               </Link>
 
+              <ThemeToggle />
+
               <button
                 type="button"
                 onClick={handleLogout}
                 title="Sign out"
                 aria-label="Sign out"
-                className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--danger)]/10 transition-all cursor-pointer"
               >
                 <LogOut size={17} />
               </button>
@@ -437,22 +453,22 @@ function DashboardLayoutContent({
         </main>
 
         {isCreateModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div
               data-create-modal
-              className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-[#121a2a] shadow-2xl shadow-black/40 overflow-hidden"
+              className="w-full max-w-md rounded-2xl bg-[var(--surface)] text-[var(--foreground)] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
             >
-              <div className="flex items-center justify-between border-b border-slate-700/80 px-6 py-5">
+              <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-400/20 flex items-center justify-center">
-                    <Layers size={19} className="text-violet-300" />
+                  <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/15 text-[var(--primary)] flex items-center justify-center">
+                    <Layers size={19} />
                   </div>
 
                   <div>
-                    <h3 className="text-sm font-bold text-white">
+                    <h3 className="text-sm font-bold text-[var(--foreground)]">
                       Create New Project
                     </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-[var(--muted)] mt-0.5">
                       Set up a new API workspace
                     </p>
                   </div>
@@ -462,7 +478,7 @@ function DashboardLayoutContent({
                   type="button"
                   onClick={closeCreateModal}
                   disabled={isCreatingProject}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-secondary)] transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <X size={17} />
                 </button>
@@ -473,7 +489,7 @@ function DashboardLayoutContent({
                 className="p-6 space-y-5"
               >
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-2">
+                  <label className="block text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider mb-2">
                     Project Name
                   </label>
 
@@ -487,10 +503,10 @@ function DashboardLayoutContent({
                     onChange={(event) =>
                       setNewProjectName(event.target.value)
                     }
-                    className="w-full rounded-xl border border-slate-700/80 bg-[#080b12] px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/10"
+                    className="w-full rounded-xl bg-[var(--surface-input)] px-4 py-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none transition-all focus:ring-2 focus:ring-[var(--primary)]/20"
                   />
 
-                  <p className="text-[11px] text-slate-500 mt-2">
+                  <p className="text-[11px] text-[var(--muted)] mt-2">
                     Give your project a clear and recognizable name.
                   </p>
                 </div>
@@ -500,7 +516,7 @@ function DashboardLayoutContent({
                     type="button"
                     onClick={closeCreateModal}
                     disabled={isCreatingProject}
-                    className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white transition-all disabled:opacity-50"
+                    className="rounded-xl px-4 py-2.5 text-xs font-semibold text-[var(--muted)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)] transition-all disabled:opacity-50 cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -510,7 +526,7 @@ function DashboardLayoutContent({
                     disabled={
                       isCreatingProject || !newProjectName.trim()
                     }
-                    className="inline-flex items-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-[var(--primary)]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
                     {isCreatingProject ? (
                       <Loader2 size={15} className="animate-spin" />
@@ -570,8 +586,15 @@ function DashboardLayoutContent({
       href="/dashboard"
       className="flex items-center gap-3 min-w-0"
     >
-      <span className="w-9 h-9 shrink-0 rounded-xl bg-[var(--primary)] flex items-center justify-center text-[var(--primary-foreground)] font-black text-lg shadow-md">
-        ⚡
+      <span className="w-9 h-9 shrink-0 rounded-xl overflow-hidden flex items-center justify-center shadow-md shadow-[var(--primary)]/20">
+        <Image
+          src="/logo.png"
+          alt="OneAPI Logo"
+          width={36}
+          height={36}
+          className="w-full h-full object-contain"
+          priority
+        />
       </span>
 
       {!sidebarCollapsed && (
@@ -675,23 +698,7 @@ function DashboardLayoutContent({
   {/* Sidebar Bottom */}
   <div className="shrink-0 border-t border-[var(--border)] p-3">
     {/* Gateway Status */}
-    <div
-      className={`flex items-center gap-2 px-3 py-2.5 mb-3 rounded-xl border border-[var(--success)]/20 bg-[var(--success)]/5 ${
-        sidebarCollapsed ? 'justify-center px-0' : ''
-      }`}
-      title="All systems operational"
-    >
-      <span className="relative flex h-2 w-2 shrink-0">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-50" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--success)]" />
-      </span>
-
-      {!sidebarCollapsed && (
-        <span className="text-[11px] font-semibold text-[var(--success)]">
-          All systems operational
-        </span>
-      )}
-    </div>
+   
 
     {/* User Profile */}
     <div
@@ -730,97 +737,68 @@ function DashboardLayoutContent({
 
       {/* Main area */}
       <div
-        className={`min-h-screen flex flex-col transition-all duration-300 ${
+        className={`min-h-screen flex flex-col bg-[var(--surface-secondary)] transition-all duration-300 ${
           sidebarCollapsed ? 'lg:ml-[76px]' : 'lg:ml-[260px]'
         }`}
       >
         {/* Topbar */}
-        <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-slate-700/80/70 bg-[#0d111b]/85 backdrop-blur-xl">
+        <header className="sticky top-0 z-30 h-16 shrink-0 bg-[var(--surface-secondary)] text-[var(--foreground)] backdrop-blur-xl">
           <div className="h-full px-4 sm:px-6 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(true)}
                 aria-label="Open navigation"
-                className="lg:hidden w-9 h-9 shrink-0 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+                className="lg:hidden w-9 h-9 shrink-0 rounded-xl flex items-center justify-center text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-secondary)] transition-all cursor-pointer"
               >
                 <Menu size={20} />
               </button>
 
+              {/* Back to Projects Button */}
+              <Link
+                href="/dashboard/projects"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--surface-secondary)] hover:bg-[var(--surface-secondary)]/80 text-[var(--foreground)] text-xs font-semibold shadow-sm transition-all shrink-0 cursor-pointer"
+                title="Back to all projects"
+              >
+                <ArrowLeft size={14} className="text-[var(--primary)] shrink-0" />
+                {/* <span className="hidden sm:inline">Projects</span> */}
+              </Link>
+
               <div className="min-w-0">
-                <div className="hidden sm:flex items-center gap-2 text-[11px] text-slate-500 mb-0.5">
+                <div className="hidden sm:flex items-center gap-2 text-[11px] text-[var(--muted)] mb-0.5">
                   <span>Workspace</span>
                   <ChevronRight size={12} />
-                  <span className="text-slate-400">
+                  <span className="text-[var(--foreground)] font-semibold">
                     {pageTitle}
                   </span>
                 </div>
 
-                <h1 className="text-sm sm:text-base font-bold text-white truncate">
+                <h1 className="text-sm sm:text-base font-bold text-[var(--foreground)] truncate">
                   {pageTitle}
                 </h1>
               </div>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
-              {/* Active project indicator */}
+              {/* Active project indicator - clickable to switch */}
               {activeProject && (
-                <div
-                  className="hidden md:flex items-center gap-2 max-w-48 rounded-xl border border-slate-700/80 bg-[#121a2a] px-3 py-2"
-                  title={activeProjectName}
+                <Link
+                  href="/dashboard/projects"
+                  className="hidden md:flex items-center gap-2 max-w-48 rounded-xl bg-[var(--surface-secondary)] hover:bg-[var(--surface-secondary)]/80 text-[var(--foreground)] px-3 py-2 transition-all cursor-pointer"
+                  title={`Active project: ${activeProjectName}. Click to change project.`}
                 >
                   <FolderGit2
                     size={14}
-                    className="text-violet-300 shrink-0"
+                    className="text-[var(--primary)] shrink-0"
                   />
-                  <span className="text-xs font-medium text-slate-300 truncate">
+                  <span className="text-xs font-medium truncate">
                     {activeProjectName}
                   </span>
-                </div>
+                </Link>
               )}
 
               {/* Theme toggle */}
-              <button
-  type="button"
-  onClick={() =>
-    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
-  }
-  title={`Switch to ${
-    resolvedTheme === 'dark' ? 'light' : 'dark'
-  } mode`}
-  aria-label="Toggle theme"
-  className="w-9 h-9 rounded-xl flex items-center justify-center
-    border border-slate-200 bg-white text-slate-500
-    hover:text-violet-400 hover:border-violet-300
-    dark:border-slate-700/80 dark:bg-[#121a2a] dark:text-slate-400
-    dark:hover:text-violet-300 dark:hover:border-violet-400/30
-    transition-all"
->
-  {resolvedTheme === 'dark' ? (
-    <Sun size={17} />
-  ) : (
-    <Moon size={17} />
-  )}
-</button>
-
-              {/* Workspace badge */}
-              <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-700/80 bg-[#121a2a] px-3 py-2">
-                <ShieldCheck
-                  size={14}
-                  className="text-violet-300"
-                />
-                <span className="text-[11px] font-semibold text-slate-300">
-                  Developer Workspace
-                </span>
-              </div>
-
-              {/* Gateway status */}
-              <div className="hidden xl:flex items-center gap-2 rounded-xl border border-emerald-500/15 bg-emerald-500/5 px-3 py-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
-                <span className="text-[11px] font-semibold text-emerald-400">
-                  Gateway Online
-                </span>
-              </div>
+              <ThemeToggle />
             </div>
           </div>
         </header>
@@ -943,8 +921,15 @@ export default function DashboardLayout({
       fallback={
         <div className="min-h-screen bg-[#080b12] flex items-center justify-center text-slate-400 text-sm">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-500 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-violet-500/20 animate-pulse">
-              ⚡
+            <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shadow-lg shadow-[var(--primary)]/20 animate-pulse">
+              <Image
+                src="/logo.png"
+                alt="OneAPI Logo"
+                width={40}
+                height={40}
+                className="w-full h-full object-contain"
+                priority
+              />
             </div>
 
             <p>Loading OneAPI Workspace...</p>

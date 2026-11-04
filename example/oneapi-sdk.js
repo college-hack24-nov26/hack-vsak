@@ -255,8 +255,16 @@
       this.projectId = projectId;
       this.timeout = timeout;
 
-      // Base URL is resolved automatically by the SDK without manual configuration
-      const winBase = typeof window !== 'undefined' ? (window.__ONEAPI_BASE_URL__ || '') : '';
+      // Base URL is resolved automatically by the SDK with environment and config support
+      const winBase =
+        typeof window !== 'undefined'
+          ? (window.ONEAPI_CONFIG?.API_BASE_URL ||
+             window.API_BASE_URL ||
+             (window.ONEAPI_CONFIG?.BASE_URL ? `${window.ONEAPI_CONFIG.BASE_URL}/api/v1` : null) ||
+             (window.ONEAPI_BASE_URL ? `${window.ONEAPI_BASE_URL}/api/v1` : null) ||
+             window.__ONEAPI_BASE_URL__ ||
+             '')
+          : '';
       this.baseURL = (winBase || 'http://localhost:5000/api/v1').replace(/\/+$/, '');
 
       this.ai = new AIResource(this);

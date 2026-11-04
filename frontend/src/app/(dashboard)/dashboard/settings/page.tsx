@@ -1,487 +1,593 @@
-
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import {
-  Lock,
-  LogOut,
-  ShieldCheck,
-  KeyRound,
+  FolderGit2,
+  Settings2,
+  Trash2,
+  Save,
+  Loader2,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
+  Copy,
+  Check,
+  Star,
+  Clock,
+  Layers,
   ArrowRight,
-  Eye,
-  EyeOff,
-  Loader2,
-  Settings2,
-  Fingerprint,
+  X,
+  ExternalLink,
 } from 'lucide-react';
 import { authStorage, fetchApi } from '@/lib/api';
 
+interface ProjectData {
+  _id?: string;
+  id?: string;
+  name: string;
+  slug: string;
+  description?: string;
+  isDefault: boolean;
+  activeKeysCount?: number;
+  vaultSecretsCount?: number;
+  routingRulesCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export default function SettingsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<ProjectData[]>([]);
+  const [activeProject, setActiveProject] = useState<ProjectData | null>(null);
 
-  const [passwordChangeMsg, setPasswordChangeMsg] = useState<{
+  // Form State
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [isDefault, setIsDefault] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
+
+  const [feedbackMsg, setFeedbackMsg] = useState<{
     type: 'success' | 'error';
     text: string;
   } | null>(null);
 
-  const [showCurrent, setShowCurrent] = useState(false);
-  const [showNew, setShowNew] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+  // Delete Project State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const passwordStrength = (() => {
-    if (!newPassword) return 0;
+  // Load project details
+  const loadProjectData = async () => {
+    setLoading(true);
+    try {
+      const storedActive = authStorage.getActiveProject();
+      const targetParamId = searchParams.get('project');
 
-    let score = 0;
-    if (newPassword.length >= 8) score++;
-    if (/[A-Z]/.test(newPassword)) score++;
-    if (/[0-9]/.test(newPassword)) score++;
-    if (/[^A-Za-z0-9]/.test(newPassword)) score++;
+      const res = await fetchApi('/api/v1/projects');
+      if (res.success && res.data?.projects) {
+        const fetchedProjects: ProjectData[] = res.data.projects;
+        setProjects(fetchedProjects);
 
-    return score;
-  })();
+        // Find active project
+        let found: ProjectData | undefined;
+        if (targetParamId) {
+          found = fetchedProjects.find((p) => (p._id || p.id) === targetParamId);
+        }
+        if (!found && storedActive) {
+          const storedId = storedActive._id || storedActive.id;
+          found = fetchedProjects.find((p) => (p._id || p.id) === storedId);
+        }
+        if (!found && fetchedProjects.length > 0) {
+          found = fetchedProjects.find((p) => p.isDefault) || fetchedProjects[0];
+        }
 
-  const strengthLabel = [
-    'Very weak',
-    'Weak',
-    'Fair',
-    'Good',
-    'Strong',
-  ][passwordStrength];
+        if (found) {
+          const normalized = {
+            ...found,
+            _id: found._id || found.id,
+            id: found._id || found.id,
+          };
+          setActiveProject(normalized);
+          setName(normalized.name || '');
+          setDescription(normalized.description || '');
+          setIsDefault(Boolean(normalized.isDefault));
+          authStorage.setActiveProject(normalized);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load project settings:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const handleChangePassword = async (e: React.FormEvent) => {
+  useEffect(() => {
+    loadProjectData();
+  }, [searchParams]);
+
+  const handleCopyProjectId = () => {
+    const idToCopy = activeProject?._id || activeProject?.id;
+    if (!idToCopy) return;
+    navigator.clipboard.writeText(idToCopy);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
+  };
+
+  // Switch Active Project
+  const handleSwitchProject = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedId = e.target.value;
+    const found = projects.find((p) => (p._id || p.id) === selectedId);
+    if (found) {
+      const normalized = {
+        ...found,
+        _id: found._id || found.id,
+        id: found._id || found.id,
+      };
+      setActiveProject(normalized);
+      setName(normalized.name || '');
+      setDescription(normalized.description || '');
+      setIsDefault(Boolean(normalized.isDefault));
+      setFeedbackMsg(null);
+      authStorage.setActiveProject(normalized);
+      window.dispatchEvent(new CustomEvent('oneapi_project_changed', { detail: normalized }));
+      router.push(`/dashboard/settings?project=${normalized._id}`);
+    }
+  };
+
+  // Update Project Details
+  const handleUpdateProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPasswordChangeMsg(null);
+    const projectId = activeProject?._id || activeProject?.id;
+    if (!projectId) return;
 
-    if (newPassword !== confirmPassword) {
-      setPasswordChangeMsg({
+    if (!name.trim()) {
+      setFeedbackMsg({
         type: 'error',
-        text: 'New passwords do not match.',
+        text: 'Project name cannot be empty.',
       });
       return;
     }
 
-    if (newPassword.length < 8) {
-      setPasswordChangeMsg({
-        type: 'error',
-        text: 'New password must be at least 8 characters long.',
-      });
-      return;
-    }
-
-    if (currentPassword === newPassword) {
-      setPasswordChangeMsg({
-        type: 'error',
-        text: 'Your new password must be different from your current password.',
-      });
-      return;
-    }
-
-    setChangingPassword(true);
+    setSaving(true);
+    setFeedbackMsg(null);
 
     try {
-      const res = await fetchApi('/api/v1/auth/change-password', {
-        method: 'POST',
+      const res = await fetchApi(`/api/v1/projects/${projectId}`, {
+        method: 'PUT',
         body: JSON.stringify({
-          currentPassword,
-          newPassword,
+          name: name.trim(),
+          description: description.trim(),
+          isDefault,
         }),
       });
 
-      if (res.success) {
-        setPasswordChangeMsg({
+      if (res.success && res.data?.project) {
+        const updated = res.data.project;
+        const normalized = {
+          ...activeProject,
+          ...updated,
+          _id: updated.id || updated._id || projectId,
+          id: updated.id || updated._id || projectId,
+        };
+
+        setActiveProject(normalized);
+        authStorage.setActiveProject(normalized);
+        window.dispatchEvent(new CustomEvent('oneapi_project_changed', { detail: normalized }));
+
+        setFeedbackMsg({
           type: 'success',
-          text: 'Your password has been successfully updated.',
+          text: `Project "${normalized.name}" details updated successfully.`,
         });
 
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
+        // Refresh project list in background
+        const listRes = await fetchApi('/api/v1/projects').catch(() => null);
+        if (listRes?.success && listRes.data?.projects) {
+          setProjects(listRes.data.projects);
+        }
       } else {
-        setPasswordChangeMsg({
+        setFeedbackMsg({
           type: 'error',
-          text: res.error?.message || 'Failed to update password.',
+          text: res.error?.message || 'Failed to update project settings.',
         });
       }
     } catch (err: any) {
-      setPasswordChangeMsg({
+      setFeedbackMsg({
         type: 'error',
-        text: err.message || 'An error occurred while updating your password.',
+        text: err.message || 'An error occurred while updating project.',
       });
     } finally {
-      setChangingPassword(false);
+      setSaving(false);
     }
   };
 
-  const handleLogout = async () => {
-    if (loggingOut) return;
+  // Delete Project
+  const handleDeleteProject = async () => {
+    const projectId = activeProject?._id || activeProject?.id;
+    if (!projectId) return;
 
-    setLoggingOut(true);
+    if (deleteConfirmationText !== (activeProject?.slug || activeProject?.name || 'DELETE')) {
+      setDeleteError(`Please type "${activeProject?.slug || activeProject?.name}" to confirm.`);
+      return;
+    }
+
+    setDeleting(true);
+    setDeleteError(null);
 
     try {
-      await fetchApi('/api/v1/auth/logout', {
-        method: 'POST',
+      const res = await fetchApi(`/api/v1/projects/${projectId}`, {
+        method: 'DELETE',
       });
-    } catch {
-      // Continue clearing local authentication state.
-    }
 
-    authStorage.clear();
-    router.push('/login');
+      if (res.success) {
+        authStorage.setActiveProject(null);
+        window.dispatchEvent(new CustomEvent('oneapi_project_changed', { detail: null }));
+        setIsDeleteModalOpen(false);
+        router.push('/dashboard/projects');
+      } else {
+        setDeleteError(res.error?.message || 'Failed to delete project.');
+        setDeleting(false);
+      }
+    } catch (err: any) {
+      setDeleteError(err.message || 'Network error while deleting project.');
+      setDeleting(false);
+    }
   };
 
-  const inputClass =
-    'w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 pr-11 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none transition-all focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/10';
+  const projectId = activeProject?._id || activeProject?.id || '';
 
-  const labelClass =
-    'mb-2 block text-xs font-semibold tracking-wide text-[var(--foreground)]';
-
-  const renderPasswordInput = (
-    label: string,
-    value: string,
-    onChange: (value: string) => void,
-    visible: boolean,
-    toggleVisible: () => void,
-    placeholder: string,
-    autoComplete: string,
-    minLength?: number,
-  ) => (
-    <div>
-      <label className={labelClass}>{label}</label>
-      <div className="relative">
-        <input
-          type={visible ? 'text' : 'password'}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          autoComplete={autoComplete}
-          required
-          minLength={minLength}
-          className={inputClass}
-        />
-        <button
-          type="button"
-          onClick={toggleVisible}
-          aria-label={visible ? 'Hide password' : 'Show password'}
-          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)]"
-        >
-          {visible ? (
-            <EyeOff className="h-4 w-4" />
-          ) : (
-            <Eye className="h-4 w-4" />
-          )}
-        </button>
+  if (loading && !activeProject) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 text-[var(--muted)]">
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--primary)]" />
+        <p className="text-xs font-semibold">Loading project settings...</p>
       </div>
-    </div>
-  );
+    );
+  }
+
+  if (!activeProject && !loading) {
+    return (
+      <div className="max-w-4xl mx-auto py-16 text-center space-y-4 text-[var(--foreground)]">
+        <FolderGit2 className="w-12 h-12 text-[var(--muted)] mx-auto" />
+        <h2 className="text-xl font-bold">No Active Project Selected</h2>
+        <p className="text-xs text-[var(--muted)] max-w-sm mx-auto">
+          Please select or create a project to configure its settings.
+        </p>
+        <Link
+          href="/dashboard/projects"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--primary)] text-white text-xs font-bold shadow-md shadow-[var(--primary)]/20"
+        >
+          <span>View All Projects</span>
+          <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto min-h-full w-full max-w-5xl space-y-8 rounded-2xl bg-[var(--background)] px-1 pb-10 text-[var(--foreground)] transition-colors duration-300">
-
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="max-w-4xl mx-auto space-y-8 pb-16 text-[var(--foreground)]">
+      {/* 1. Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--muted)]">
-            <Settings2 className="h-3.5 w-3.5" />
-            Developer Workspace
-            <span className="text-[var(--border)]">/</span>
-            Settings
+          <div className="flex items-center gap-2 text-xs font-medium text-[var(--muted)] mb-1">
+            <Settings2 className="w-3.5 h-3.5 text-[var(--primary)]" />
+            <span>Developer Workspace</span>
+            <span>/</span>
+            <span className="text-[var(--foreground)] font-semibold">Project Settings</span>
           </div>
-
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
-            Account Settings
+          <h1 className="text-3xl font-extrabold tracking-tight text-[var(--foreground)]">
+            Project Settings
           </h1>
-
-          <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">
-            Manage your account security and authentication preferences.
+          <p className="text-xs md:text-sm text-[var(--muted)] mt-1">
+            Configure metadata, identity, and lifecycle options for this project scope.
           </p>
         </div>
 
-        <div className="flex w-fit items-center gap-2 rounded-full border border-[var(--success)]/20 bg-[var(--success)]/10 px-3.5 py-2">
-          <ShieldCheck className="h-4 w-4 text-[var(--success)]" />
-          <span className="text-xs font-semibold text-[var(--success)]">
-            Security Center
-          </span>
-        </div>
-      </div>
-
-      {/* Security Overview */}
-      <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow)] sm:p-6">
-        <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-[var(--primary)]/5 blur-3xl" />
-
-        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--success)]/20 bg-[var(--success)]/10">
-              <Fingerprint className="h-6 w-6 text-[var(--success)]" />
-            </div>
-
-            <div>
-              <h2 className="text-base font-bold text-[var(--foreground)]">
-                Account Security
-              </h2>
-              <p className="mt-1 max-w-md text-xs leading-5 text-[var(--muted)]">
-                Keep your account protected by using a strong, unique password
-                and signing out of sessions you no longer need.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 text-xs font-medium text-[var(--success)]">
-            <CheckCircle2 className="h-4 w-4" />
-            Security controls available
-          </div>
-        </div>
-
-        <div className="relative mt-6 grid grid-cols-1 gap-3 border-t border-[var(--border)] pt-5 sm:grid-cols-2">
-          <div className="flex items-center gap-3 rounded-xl bg-[var(--surface)] p-3.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--surface-secondary)]">
-              <KeyRound className="h-4 w-4 text-[var(--primary)]" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-[var(--foreground)]">
-                Password Management
-              </p>
-              <p className="mt-0.5 text-[11px] text-[var(--muted)]">
-                Update your account password
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 rounded-xl bg-[var(--surface)] p-3.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--surface-secondary)]">
-              <LogOut className="h-4 w-4 text-[var(--primary)]" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-[var(--foreground)]">
-                Session Management
-              </p>
-              <p className="mt-0.5 text-[11px] text-[var(--muted)]">
-                Sign out of your current session
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Password Section */}
-      <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow)]">
-        <div className="flex items-center gap-3 border-b border-[var(--border)] px-5 py-5 sm:px-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--primary)]/10">
-            <Lock className="h-5 w-5 text-[var(--primary)]" />
-          </div>
-
-          <div>
-            <h2 className="text-sm font-bold text-[var(--foreground)]">
-              Change Password
-            </h2>
-            <p className="mt-0.5 text-xs text-[var(--muted)]">
-              Update the password associated with your account.
-            </p>
-          </div>
-        </div>
-
-        <div className="p-5 sm:p-6">
-          {passwordChangeMsg && (
-            <div
-              role="alert"
-              className={`mb-5 flex items-start gap-3 rounded-xl border p-3.5 ${
-                passwordChangeMsg.type === 'success'
-                  ? 'border-[var(--success)]/20 bg-[var(--success)]/10 text-[var(--success)]'
-                  : 'border-[var(--danger)]/20 bg-[var(--danger)]/10 text-[var(--danger)]'
-              }`}
+        {/* Project Switcher */}
+        {projects.length > 1 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--muted)] font-medium">Scope:</span>
+            <select
+              value={projectId}
+              onChange={handleSwitchProject}
+              className="bg-[var(--surface-input)] text-[var(--foreground)] text-xs font-semibold px-3 py-2 rounded-xl outline-none focus:ring-2 focus:ring-[var(--primary)]/20 cursor-pointer"
             >
-              {passwordChangeMsg.type === 'success' ? (
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              ) : (
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              )}
+              {projects.map((p) => {
+                const pId = p._id || p.id;
+                return (
+                  <option key={pId} value={pId}>
+                    {p.name} {p.isDefault ? '(Default)' : ''}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        )}
+      </div>
 
-              <p className="text-xs font-medium leading-5">
-                {passwordChangeMsg.text}
+      {/* Feedback Banner */}
+      {feedbackMsg && (
+        <div
+          className={`p-4 rounded-xl text-xs font-medium flex items-center gap-2.5 ${
+            feedbackMsg.type === 'success'
+              ? 'bg-[var(--success)]/10 text-[var(--success)]'
+              : 'bg-[var(--danger)]/10 text-[var(--danger)]'
+          }`}
+        >
+          {feedbackMsg.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 shrink-0" />
+          )}
+          <span>{feedbackMsg.text}</span>
+        </div>
+      )}
+
+      {/* 2. Project Details & Identity Card */}
+      <section className="rounded-2xl bg-[var(--card)] shadow-[var(--shadow)] overflow-hidden">
+        <div className="px-6 py-5 flex items-center justify-between border-b border-[var(--border)]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/15 text-[var(--primary)] flex items-center justify-center font-bold text-sm shrink-0">
+              {activeProject?.name.slice(0, 2).toUpperCase()}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-[var(--foreground)]">
+                  {activeProject?.name}
+                </h2>
+                {activeProject?.isDefault && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-semibold flex items-center gap-1">
+                    <Star className="w-3 h-3 fill-amber-500" /> Default Scope
+                  </span>
+                )}
+              </div>
+              <p className="text-xs font-mono text-[var(--muted)] mt-0.5">
+                slug: <span className="text-[var(--foreground)]">{activeProject?.slug}</span>
               </p>
             </div>
-          )}
+          </div>
 
-          <form onSubmit={handleChangePassword} className="space-y-5">
-            <div className="max-w-xl space-y-4">
-              {renderPasswordInput(
-                'Current Password',
-                currentPassword,
-                setCurrentPassword,
-                showCurrent,
-                () => setShowCurrent(!showCurrent),
-                'Enter your current password',
-                'current-password',
-              )}
-
-              <div className="border-t border-[var(--border)] pt-4">
-                {renderPasswordInput(
-                  'New Password',
-                  newPassword,
-                  setNewPassword,
-                  showNew,
-                  () => setShowNew(!showNew),
-                  'Enter a new password',
-                  'new-password',
-                  8,
-                )}
-
-                {newPassword && (
-                  <div className="mt-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-[11px] text-[var(--muted)]">
-                        Password strength
-                      </span>
-                      <span className="text-[11px] font-semibold text-[var(--foreground)]">
-                        {strengthLabel}
-                      </span>
-                    </div>
-
-                    <div className="flex gap-1.5">
-                      {[1, 2, 3, 4].map((level) => (
-                        <div
-                          key={level}
-                          className={`h-1.5 flex-1 rounded-full transition-colors ${
-                            passwordStrength >= level
-                              ? 'bg-[var(--success)]'
-                              : 'bg-[var(--surface-secondary)]'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {renderPasswordInput(
-                'Confirm New Password',
-                confirmPassword,
-                setConfirmPassword,
-                showConfirm,
-                () => setShowConfirm(!showConfirm),
-                'Re-enter your new password',
-                'new-password',
-                8,
-              )}
-
-              {confirmPassword && (
-                <div className={`flex items-center gap-2 text-[11px] ${
-                  newPassword === confirmPassword
-                    ? 'text-[var(--success)]'
-                    : 'text-[var(--danger)]'
-                }`}>
-                  {newPassword === confirmPassword ? (
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                  ) : (
-                    <AlertCircle className="h-3.5 w-3.5" />
-                  )}
-                  {newPassword === confirmPassword
-                    ? 'Passwords match'
-                    : 'Passwords do not match'}
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2 text-[11px] text-[var(--muted)]">
-                <ShieldCheck className="h-4 w-4 shrink-0" />
-                Minimum 8 characters required
-              </div>
-
-              <button
-                type="submit"
-                disabled={
-                  changingPassword ||
-                  !currentPassword ||
-                  !newPassword ||
-                  !confirmPassword
-                }
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 py-3 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[var(--primary-hover)] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {changingPassword ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Updating Password...
-                  </>
-                ) : (
-                  <>
-                    Update Password
-                    <ArrowRight className="h-4 w-4" />
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
+          <Link
+            href="/dashboard/projects"
+            className="text-xs text-[var(--primary)] hover:underline inline-flex items-center gap-1 font-semibold"
+          >
+            <span>All Projects</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
         </div>
+
+        {/* Edit Form */}
+        <form onSubmit={handleUpdateProject} className="p-6 space-y-5">
+          <div className="space-y-4">
+            {/* Project Name */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground)] mb-1.5">
+                Project Name <span className="text-[var(--danger)]">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Production Mobile Gateway"
+                className="w-full px-4 py-2.5 bg-[var(--surface-input)] rounded-xl text-xs text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+              />
+            </div>
+
+            {/* Project Slug (Read-only identifier) */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground)]">
+                  Project Slug
+                </label>
+                <span className="text-[10px] text-[var(--muted)]">API Header & URL Route Identifier</span>
+              </div>
+              <div className="flex items-center bg-[var(--surface-secondary)]/60 rounded-xl px-3.5 py-2.5 text-xs font-mono text-[var(--muted)]">
+                <span className="select-none text-[var(--muted)]/70">x-project-slug:&nbsp;</span>
+                <span className="text-[var(--foreground)] font-semibold">{activeProject?.slug}</span>
+              </div>
+            </div>
+
+            {/* Project ID */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground)]">
+                  Project ID
+                </label>
+                <button
+                  type="button"
+                  onClick={handleCopyProjectId}
+                  className="text-[10px] text-[var(--primary)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                >
+                  {copiedId ? <Check className="w-3 h-3 text-[var(--success)]" /> : <Copy className="w-3 h-3" />}
+                  {copiedId ? 'Copied' : 'Copy ID'}
+                </button>
+              </div>
+              <input
+                type="text"
+                disabled
+                value={projectId}
+                className="w-full px-4 py-2.5 bg-[var(--surface-secondary)]/60 rounded-xl text-xs font-mono text-[var(--muted)] cursor-not-allowed outline-none"
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground)] mb-1.5">
+                Description
+              </label>
+              <textarea
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe the application scope, environment, or target platform..."
+                className="w-full px-4 py-2.5 bg-[var(--surface-input)] rounded-xl text-xs text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+              />
+            </div>
+
+            {/* Set as Default Project */}
+            <div className="pt-2">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isDefault}
+                  onChange={(e) => setIsDefault(e.target.checked)}
+                  className="mt-0.5 rounded text-[var(--primary)] focus:ring-[var(--primary)]/20"
+                />
+                <div>
+                  <span className="text-xs font-semibold text-[var(--foreground)]">
+                    Default Workspace Scope
+                  </span>
+                  <p className="text-[11px] text-[var(--muted)] leading-relaxed">
+                    Automatically load this project when opening the OneAPI developer dashboard.
+                  </p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Timestamps */}
+          <div className="pt-4 border-t border-[var(--border)] flex flex-wrap items-center justify-between gap-4 text-[11px] text-[var(--muted)]">
+            <div className="flex items-center gap-1.5 font-mono">
+              <Clock className="w-3.5 h-3.5" />
+              <span>
+                Created: {activeProject?.createdAt ? new Date(activeProject.createdAt).toLocaleDateString() : 'Active'}
+              </span>
+            </div>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-5 py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-[var(--primary)]/20 transition-all cursor-pointer disabled:opacity-50"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-3.5 h-3.5" />
+                  Save Project Details
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </section>
 
-      {/* Session Section */}
-      <section className="overflow-hidden rounded-2xl border border-[var(--danger)]/20 bg-[var(--card)] shadow-[var(--shadow)]">
-        <div className="flex items-center gap-3 border-b border-[var(--border)] px-5 py-5 sm:px-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--danger)]/10">
-            <LogOut className="h-5 w-5 text-[var(--danger)]" />
-          </div>
-
-          <div>
-            <h2 className="text-sm font-bold text-[var(--foreground)]">
-              Session Management
+      {/* 3. Project Delete Options (Danger Zone) */}
+      <section className="rounded-2xl bg-[var(--danger)]/5 shadow-[var(--shadow)] p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+          <div className="space-y-1">
+            <h2 className="text-base font-bold text-[var(--danger)] flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Delete Project
             </h2>
-            <p className="mt-0.5 text-xs text-[var(--muted)]">
-              Manage your current authenticated session.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div className="max-w-md">
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">
-              Sign out of OneAPI
-            </h3>
-            <p className="mt-1.5 text-xs leading-5 text-[var(--muted)]">
-              End your current session and return to the login screen.
-              You will need to authenticate again to access your workspace.
+            <p className="text-xs text-[var(--muted)] max-w-xl leading-relaxed">
+              Permanently delete project &ldquo;{activeProject?.name}&rdquo; and all of its associated scoped API keys, vault credentials, failover routing rules, and proxy request telemetry logs. This action cannot be reversed.
             </p>
           </div>
 
           <button
             type="button"
-            onClick={handleLogout}
-            disabled={loggingOut}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--danger)]/25 bg-[var(--danger)]/10 px-5 py-3 text-xs font-semibold text-[var(--danger)] transition-all hover:bg-[var(--danger)]/15 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => {
+              setDeleteConfirmationText('');
+              setDeleteError(null);
+              setIsDeleteModalOpen(true);
+            }}
+            className="px-5 py-2.5 rounded-xl bg-[var(--danger)] hover:bg-[var(--danger)]/90 text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-[var(--danger)]/20 transition-all cursor-pointer shrink-0"
           >
-            {loggingOut ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Signing Out...
-              </>
-            ) : (
-              <>
-                <LogOut className="h-4 w-4" />
-                Sign Out
-              </>
-            )}
+            <Trash2 className="w-4 h-4" />
+            <span>Delete Project</span>
           </button>
         </div>
       </section>
 
-      {/* Footer */}
-      <div className="flex flex-col items-center justify-between gap-2 border-t border-[var(--border)] pt-5 text-center sm:flex-row sm:text-left">
-        <p className="text-[11px] text-[var(--muted)]">
-          OneAPI Account Security
-        </p>
-        <div className="flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          Account security controls
+      {/* Delete Project Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[var(--surface)] text-[var(--foreground)] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between">
+              <div className="w-10 h-10 rounded-xl bg-[var(--danger)]/15 text-[var(--danger)] flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="p-1 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-[var(--foreground)]">
+                Delete Project &ldquo;{activeProject?.name}&rdquo;?
+              </h3>
+              <p className="text-xs text-[var(--muted)] mt-1.5 leading-relaxed">
+                All API keys, provider credentials in the vault, routing rules, and gateway logs associated with this project will be permanently erased.
+              </p>
+            </div>
+
+            {deleteError && (
+              <div className="p-3 rounded-xl bg-[var(--danger)]/10 text-[var(--danger)] text-xs font-medium">
+                {deleteError}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-semibold text-[var(--muted)] mb-1.5">
+                Type <strong className="text-[var(--danger)]">{activeProject?.slug || activeProject?.name}</strong> to confirm:
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmationText}
+                onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                placeholder={activeProject?.slug || activeProject?.name}
+                className="w-full px-3.5 py-2.5 bg-[var(--surface-input)] rounded-xl text-xs text-[var(--foreground)] outline-none focus:ring-2 focus:ring-[var(--danger)]/30 font-mono"
+              />
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-secondary)] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteProject}
+                disabled={
+                  deleting ||
+                  deleteConfirmationText !== (activeProject?.slug || activeProject?.name)
+                }
+                className="px-5 py-2.5 rounded-xl bg-[var(--danger)] hover:bg-[var(--danger)]/90 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-[var(--danger)]/20 cursor-pointer"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete Project
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

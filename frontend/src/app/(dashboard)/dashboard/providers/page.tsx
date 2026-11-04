@@ -3,6 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   Cpu,
   Shield,
@@ -227,6 +228,15 @@ export default function ProvidersPage() {
 
   useEffect(() => {
     loadVaultAndRouting();
+
+    const handleProjectChanged = () => {
+      loadVaultAndRouting();
+    };
+
+    window.addEventListener('oneapi_project_changed', handleProjectChanged);
+    return () => {
+      window.removeEventListener('oneapi_project_changed', handleProjectChanged);
+    };
   }, []);
 
   const handleSaveProviderKey = async (e: React.FormEvent) => {
@@ -578,8 +588,8 @@ export default function ProvidersPage() {
             </div>
 
             <div className="mt-4 flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--primary)]/10 text-[var(--primary)]">
-                <Server size={18} />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden shadow-sm">
+                <Image src="/logo.png" alt="OneAPI" width={36} height={36} className="w-full h-full object-contain" />
               </div>
               <div>
                 <p className="text-sm font-bold text-[var(--foreground)]">

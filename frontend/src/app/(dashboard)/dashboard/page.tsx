@@ -6,6 +6,8 @@ import { useSearchParams } from 'next/navigation';
 import {
   Activity,
   ArrowDownRight,
+  ArrowLeft,
+  FolderGit2,
   ArrowRight,
   ArrowUpRight,
   CheckCircle2,
@@ -102,7 +104,7 @@ function OverviewContent() {
       }
 
       const storedProject = authStorage.getActiveProject();
-      if (storedProject) setCurrentProject(storedProject);
+      // if (storedProject) setCurrentProject(storedProject);
 
       const targetProjectId = paramProjectId || storedProject?._id || storedProject?.id;
       const overviewPath = targetProjectId
@@ -120,11 +122,20 @@ function OverviewContent() {
       }
 
       if (overviewRes?.success && overviewRes.data) {
+        const raw = overviewRes.data;
+        const m = raw.metrics || {};
         setOverview({
           ...initialOverview,
-          ...overviewRes.data,
-          recentLogs: Array.isArray(overviewRes.data.recentLogs)
-            ? overviewRes.data.recentLogs
+          ...raw,
+          ...m,
+          totalRequests: raw.totalRequests ?? m.totalRequests ?? 0,
+          totalFallbacks: raw.totalFallbacks ?? m.totalFallbacks ?? 0,
+          fallbackRatePercentage: raw.fallbackRatePercentage ?? m.fallbackRatePercentage ?? '0.00%',
+          averageLatencyMs: raw.averageLatencyMs ?? m.averageLatencyMs ?? 0,
+          activeKeysCount: raw.activeKeysCount ?? m.activeKeysCount ?? 0,
+          configuredVaultCount: raw.configuredVaultCount ?? m.configuredVaultCount ?? 0,
+          recentLogs: Array.isArray(raw.recentLogs)
+            ? raw.recentLogs
             : [],
         });
       } else {
@@ -139,10 +150,31 @@ function OverviewContent() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     void loadData();
+
+    const handleProjectChanged = () => {
+      void loadData();
+    };
+
+    window.addEventListener('oneapi_project_changed', handleProjectChanged);
+
+    const interval = setInterval(() => {
+      void loadData();
+    }, 15000);
+
+    const handleFocus = () => {
+      void loadData();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('oneapi_project_changed', handleProjectChanged);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
   }, [loadData]);
 
   const metrics = [
@@ -177,10 +209,17 @@ function OverviewContent() {
   ];
 
   return (
-    <main className="dashboard-page space-y-7">
-      {/* Page heading */}
+    <main className="dashboard-page bg-[var(--surface-secondary)] space-y-7">
+            {/* Page heading */}
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
+          <Link
+            href="/dashboard/projects"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--surface)] hover:bg-[var(--surface-secondary)] text-[var(--foreground)] text-xs font-semibold shadow-sm transition-all mb-2.5 w-fit cursor-pointer"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 text-[var(--primary)]" />
+            <span>Back to Projects</span>
+          </Link>
           <div className="mb-2 flex items-center gap-2">
             <span className="dashboard-overline">WORKSPACE</span>
             <span className="dashboard-overline-divider" />
