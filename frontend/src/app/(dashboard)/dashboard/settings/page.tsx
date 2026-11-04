@@ -184,7 +184,7 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-8 pb-10">
+    <div className="mx-auto min-h-full w-full max-w-5xl space-y-8 rounded-2xl bg-[var(--background)] px-1 pb-10 text-[var(--foreground)] transition-colors duration-300">
 
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

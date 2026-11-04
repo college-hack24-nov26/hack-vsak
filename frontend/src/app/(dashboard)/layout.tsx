@@ -87,7 +87,7 @@ function DashboardLayoutContent({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
- const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
   const [mounted, setMounted] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -311,9 +311,9 @@ function DashboardLayoutContent({
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-[#090d16] flex items-center justify-center text-slate-400">
+      <div className="min-h-screen bg-[#080b12] flex items-center justify-center text-slate-400">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white text-xl shadow-lg shadow-sky-500/20 animate-pulse">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-violet-500 to-indigo-600 flex items-center justify-center text-white text-xl shadow-lg shadow-violet-500/20 animate-pulse">
             ⚡
           </div>
 
@@ -322,7 +322,7 @@ function DashboardLayoutContent({
           </p>
 
           <div className="w-32 h-1 rounded-full bg-slate-800 overflow-hidden">
-            <div className="h-full w-1/2 rounded-full bg-sky-500 animate-pulse" />
+            <div className="h-full w-1/2 rounded-full bg-violet-500 animate-pulse" />
           </div>
         </div>
       </div>
@@ -357,20 +357,20 @@ function DashboardLayoutContent({
 
   if (isWorkspaceLevel) {
     return (
-      <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans">
-        <header className="sticky top-0 z-40 h-16 shrink-0 border-b border-slate-800/80 bg-[#0b0f19]/90 backdrop-blur-xl">
+      <div className="min-h-screen bg-[#080b12] text-slate-100 flex flex-col font-sans">
+        <header className="sticky top-0 z-40 h-16 shrink-0 border-b border-slate-700/80/70 bg-[#0d111b]/90 backdrop-blur-xl">
           <div className="h-full max-w-[1600px] mx-auto px-4 sm:px-6 flex items-center justify-between gap-4">
             <div className="flex items-center gap-6">
               <Link
                 href="/dashboard/projects"
                 className="flex items-center gap-2.5 shrink-0"
               >
-                <span className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-sky-500/20">
+                <span className="w-9 h-9 rounded-xl bg-gradient-to-tr from-violet-500 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-violet-500/20">
                   ⚡
                 </span>
 
                 <span className="text-lg font-bold tracking-tight text-white">
-                  One<span className="text-sky-400">API</span>
+                  One<span className="text-violet-300">API</span>
                 </span>
               </Link>
 
@@ -381,7 +381,7 @@ function DashboardLayoutContent({
                   href="/dashboard/projects"
                   className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${
                     pathname === '/dashboard/projects'
-                      ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                      ? 'bg-violet-500/10 text-violet-300 border border-violet-400/20'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                   }`}
                 >
@@ -395,7 +395,7 @@ function DashboardLayoutContent({
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-500 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-sky-600/15 transition-all"
+                className="inline-flex items-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-500 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-violet-600/20 transition-all"
               >
                 <Plus size={16} />
                 <span className="hidden xs:inline">New Project</span>
@@ -406,11 +406,11 @@ function DashboardLayoutContent({
                 href="/dashboard/profile"
                 className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs sm:text-sm font-medium transition-all ${
                   pathname === '/dashboard/profile'
-                    ? 'border-sky-500/30 bg-sky-500/10 text-sky-300'
-                    : 'border-slate-800 bg-[#0f172a] text-slate-300 hover:border-slate-700 hover:text-white'
+                    ? 'border-violet-400/30 bg-violet-500/10 text-violet-300'
+                    : 'border-slate-700/80 bg-[#121a2a] text-slate-300 hover:border-slate-700 hover:text-white'
                 }`}
               >
-                <span className="w-6 h-6 rounded-lg bg-sky-500/15 text-sky-400 flex items-center justify-center text-xs font-bold">
+                <span className="w-6 h-6 rounded-lg bg-violet-500/15 text-violet-300 flex items-center justify-center text-xs font-bold">
                   {initials.slice(0, 1)}
                 </span>
 
@@ -440,12 +440,12 @@ function DashboardLayoutContent({
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
             <div
               data-create-modal
-              className="w-full max-w-md rounded-2xl border border-slate-800 bg-[#0f172a] shadow-2xl shadow-black/40 overflow-hidden"
+              className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-[#121a2a] shadow-2xl shadow-black/40 overflow-hidden"
             >
-              <div className="flex items-center justify-between border-b border-slate-800 px-6 py-5">
+              <div className="flex items-center justify-between border-b border-slate-700/80 px-6 py-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center">
-                    <Layers size={19} className="text-sky-400" />
+                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-400/20 flex items-center justify-center">
+                    <Layers size={19} className="text-violet-300" />
                   </div>
 
                   <div>
@@ -487,7 +487,7 @@ function DashboardLayoutContent({
                     onChange={(event) =>
                       setNewProjectName(event.target.value)
                     }
-                    className="w-full rounded-xl border border-slate-800 bg-[#090d16] px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all focus:border-sky-500/60 focus:ring-2 focus:ring-sky-500/10"
+                    className="w-full rounded-xl border border-slate-700/80 bg-[#080b12] px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/10"
                   />
 
                   <p className="text-[11px] text-slate-500 mt-2">
@@ -510,7 +510,7 @@ function DashboardLayoutContent({
                     disabled={
                       isCreatingProject || !newProjectName.trim()
                     }
-                    className="inline-flex items-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-sky-600/15 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isCreatingProject ? (
                       <Loader2 size={15} className="animate-spin" />
@@ -536,7 +536,7 @@ function DashboardLayoutContent({
   // ============================================================
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 font-sans">
+    <div className="min-h-screen bg-[#080b12] text-slate-100 font-sans">
       {/* Mobile backdrop */}
       {mobileMenuOpen && (
         <button
@@ -548,173 +548,185 @@ function DashboardLayoutContent({
       )}
 
       {/* Sidebar */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-slate-800/80 bg-[#0b0f19] transition-all duration-300 ${
-          sidebarCollapsed ? 'w-[76px]' : 'w-[260px]'
-        } ${
-          mobileMenuOpen
-            ? 'translate-x-0'
-            : '-translate-x-full lg:translate-x-0'
-        }`}
-      >
-        {/* Brand */}
-        <div className="h-16 shrink-0 flex items-center justify-between border-b border-slate-800/80 px-4">
+    {/* Sidebar */}
+<aside
+  className={`fixed inset-y-0 left-0 z-50 flex flex-col
+    border-r border-[var(--border)]
+    bg-[var(--surface-secondary)]
+    text-[var(--foreground)]
+    transition-all duration-300
+    ${
+      sidebarCollapsed ? 'w-[76px]' : 'w-[260px]'
+    }
+    ${
+      mobileMenuOpen
+        ? 'translate-x-0'
+        : '-translate-x-full lg:translate-x-0'
+    }`}
+>
+  {/* Brand */}
+  <div className="h-16 shrink-0 flex items-center justify-between border-b border-[var(--border)] px-4">
+    <Link
+      href="/dashboard"
+      className="flex items-center gap-3 min-w-0"
+    >
+      <span className="w-9 h-9 shrink-0 rounded-xl bg-[var(--primary)] flex items-center justify-center text-[var(--primary-foreground)] font-black text-lg shadow-md">
+        ⚡
+      </span>
+
+      {!sidebarCollapsed && (
+        <span className="text-lg font-bold tracking-tight text-[var(--foreground)] whitespace-nowrap">
+          One<span className="text-[var(--primary)]">API</span>
+        </span>
+      )}
+    </Link>
+
+    <button
+      type="button"
+      onClick={() =>
+        setSidebarCollapsed((previous) => !previous)
+      }
+      title={
+        sidebarCollapsed
+          ? 'Expand sidebar'
+          : 'Collapse sidebar'
+      }
+      className="hidden lg:flex w-8 h-8 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--primary)] hover:bg-[var(--surface)] transition-all"
+    >
+      {sidebarCollapsed ? (
+        <ChevronRight size={17} />
+      ) : (
+        <ChevronLeft size={17} />
+      )}
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setMobileMenuOpen(false)}
+      aria-label="Close sidebar"
+      className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--primary)] hover:bg-[var(--surface)]"
+    >
+      <X size={19} />
+    </button>
+  </div>
+
+  {/* Navigation */}
+  <div className="flex-1 overflow-y-auto px-3 py-6">
+    {!sidebarCollapsed && (
+      <p className="px-3 mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">
+        Workspace
+      </p>
+    )}
+
+    <nav className="space-y-1">
+      {NAV_ITEMS.map((item) => {
+        const isActive =
+          item.href === '/dashboard'
+            ? pathname === '/dashboard'
+            : pathname.startsWith(item.href);
+
+        return (
           <Link
-            href="/dashboard"
-            className="flex items-center gap-3 min-w-0"
+            key={item.href}
+            href={item.href}
+            onClick={() => setMobileMenuOpen(false)}
+            title={
+              sidebarCollapsed ? item.label : undefined
+            }
+            className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200
+              ${
+                isActive
+                  ? 'border border-[var(--primary)]/25 bg-[var(--primary)]/10 text-[var(--primary)] shadow-sm'
+                  : 'border border-transparent text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]'
+              }
+              ${
+                sidebarCollapsed
+                  ? 'justify-center px-0'
+                  : ''
+              }`}
           >
-            <span className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-sky-500/20">
-              ⚡
+            <span
+              className={`shrink-0 transition-colors ${
+                isActive
+                  ? 'text-[var(--primary)]'
+                  : 'text-[var(--muted)] group-hover:text-[var(--primary)]'
+              }`}
+            >
+              {item.icon}
             </span>
 
             {!sidebarCollapsed && (
-              <span className="text-lg font-bold tracking-tight text-white whitespace-nowrap">
-                One<span className="text-sky-400">API</span>
-              </span>
+              <>
+                <span className="truncate">
+                  {item.label}
+                </span>
+
+                {isActive && (
+                  <span className="absolute right-3 h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
+                )}
+              </>
             )}
           </Link>
+        );
+      })}
+    </nav>
+  </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              setSidebarCollapsed((previous) => !previous)
-            }
-            title={
-              sidebarCollapsed
-                ? 'Expand sidebar'
-                : 'Collapse sidebar'
-            }
-            className="hidden lg:flex w-8 h-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-all"
-          >
-            {sidebarCollapsed ? (
-              <ChevronRight size={17} />
-            ) : (
-              <ChevronLeft size={17} />
-            )}
-          </button>
+  {/* Sidebar Bottom */}
+  <div className="shrink-0 border-t border-[var(--border)] p-3">
+    {/* Gateway Status */}
+    <div
+      className={`flex items-center gap-2 px-3 py-2.5 mb-3 rounded-xl border border-[var(--success)]/20 bg-[var(--success)]/5 ${
+        sidebarCollapsed ? 'justify-center px-0' : ''
+      }`}
+      title="All systems operational"
+    >
+      <span className="relative flex h-2 w-2 shrink-0">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-50" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--success)]" />
+      </span>
 
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(false)}
-            aria-label="Close sidebar"
-            className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-          >
-            <X size={19} />
-          </button>
+      {!sidebarCollapsed && (
+        <span className="text-[11px] font-semibold text-[var(--success)]">
+          All systems operational
+        </span>
+      )}
+    </div>
+
+    {/* User Profile */}
+    <div
+      className={`flex items-center gap-3 rounded-xl p-2 hover:bg-[var(--surface)] transition-colors ${
+        sidebarCollapsed ? 'justify-center' : ''
+      }`}
+    >
+      <div className="w-9 h-9 shrink-0 rounded-xl bg-[var(--primary)]/10 border border-[var(--primary)]/20 flex items-center justify-center text-xs font-bold text-[var(--primary)]">
+        {initials}
+      </div>
+
+      {!sidebarCollapsed && (
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold text-[var(--foreground)] truncate">
+            {user?.name || 'Developer'}
+          </p>
+
+          <p className="text-[10px] text-[var(--muted)] truncate mt-0.5">
+            {user?.email || 'dev@oneapi.io'}
+          </p>
         </div>
+      )}
 
-        {/* Navigation */}
-        <div className="flex-1 overflow-y-auto px-3 py-6">
-          {!sidebarCollapsed && (
-            <p className="px-3 mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
-              Workspace
-            </p>
-          )}
-
-          <nav className="space-y-1">
-            {NAV_ITEMS.map((item) => {
-              const isActive =
-                item.href === '/dashboard'
-                  ? pathname === '/dashboard'
-                  : pathname.startsWith(item.href);
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  title={
-                    sidebarCollapsed ? item.label : undefined
-                  }
-                  className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20 shadow-sm shadow-sky-500/5'
-                      : 'border border-transparent text-slate-400 hover:bg-slate-800/60 hover:text-slate-100'
-                  } ${
-                    sidebarCollapsed
-                      ? 'justify-center px-0'
-                      : ''
-                  }`}
-                >
-                  <span
-                    className={`shrink-0 transition-colors ${
-                      isActive
-                        ? 'text-sky-400'
-                        : 'text-slate-500 group-hover:text-slate-200'
-                    }`}
-                  >
-                    {item.icon}
-                  </span>
-
-                  {!sidebarCollapsed && (
-                    <>
-                      <span className="truncate">
-                        {item.label}
-                      </span>
-
-                      {isActive && (
-                        <span className="absolute right-3 w-1.5 h-1.5 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.7)]" />
-                      )}
-                    </>
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* Sidebar bottom */}
-        <div className="shrink-0 border-t border-slate-800/80 p-3">
-          <div
-            className={`flex items-center gap-2 px-3 py-2.5 mb-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10 ${
-              sidebarCollapsed ? 'justify-center px-0' : ''
-            }`}
-            title="All systems operational"
-          >
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-            </span>
-
-            {!sidebarCollapsed && (
-              <span className="text-[11px] font-medium text-emerald-400">
-                All systems operational
-              </span>
-            )}
-          </div>
-
-          <div
-            className={`flex items-center gap-3 rounded-xl p-2 hover:bg-slate-800/50 transition-colors ${
-              sidebarCollapsed ? 'justify-center' : ''
-            }`}
-          >
-            <div className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-sky-500/20 to-blue-600/20 border border-sky-500/20 flex items-center justify-center text-xs font-bold text-sky-300">
-              {initials}
-            </div>
-
-            {!sidebarCollapsed && (
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-slate-200 truncate">
-                  {user?.name || 'Developer'}
-                </p>
-                <p className="text-[10px] text-slate-500 truncate mt-0.5">
-                  {user?.email || 'dev@oneapi.io'}
-                </p>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              title="Sign out"
-              aria-label="Sign out"
-              className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
-            >
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
-      </aside>
+      <button
+        type="button"
+        onClick={handleLogout}
+        title="Sign out"
+        aria-label="Sign out"
+        className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--danger)]/10 transition-all"
+      >
+        <LogOut size={16} />
+      </button>
+    </div>
+  </div>
+</aside>
 
       {/* Main area */}
       <div
@@ -723,7 +735,7 @@ function DashboardLayoutContent({
         }`}
       >
         {/* Topbar */}
-        <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-slate-800/80 bg-[#0b0f19]/85 backdrop-blur-xl">
+        <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-slate-700/80/70 bg-[#0d111b]/85 backdrop-blur-xl">
           <div className="h-full px-4 sm:px-6 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <button
@@ -754,12 +766,12 @@ function DashboardLayoutContent({
               {/* Active project indicator */}
               {activeProject && (
                 <div
-                  className="hidden md:flex items-center gap-2 max-w-48 rounded-xl border border-slate-800 bg-[#0f172a] px-3 py-2"
+                  className="hidden md:flex items-center gap-2 max-w-48 rounded-xl border border-slate-700/80 bg-[#121a2a] px-3 py-2"
                   title={activeProjectName}
                 >
                   <FolderGit2
                     size={14}
-                    className="text-sky-400 shrink-0"
+                    className="text-violet-300 shrink-0"
                   />
                   <span className="text-xs font-medium text-slate-300 truncate">
                     {activeProjectName}
@@ -768,14 +780,23 @@ function DashboardLayoutContent({
               )}
 
               {/* Theme toggle */}
-             <button
+              <button
   type="button"
-  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-  title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+  onClick={() =>
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
+  }
+  title={`Switch to ${
+    resolvedTheme === 'dark' ? 'light' : 'dark'
+  } mode`}
   aria-label="Toggle theme"
-  className="w-9 h-9 rounded-xl flex items-center justify-center border border-slate-800 bg-[#0f172a] text-slate-400 hover:text-sky-400 hover:border-sky-500/30 transition-all"
+  className="w-9 h-9 rounded-xl flex items-center justify-center
+    border border-slate-200 bg-white text-slate-500
+    hover:text-violet-400 hover:border-violet-300
+    dark:border-slate-700/80 dark:bg-[#121a2a] dark:text-slate-400
+    dark:hover:text-violet-300 dark:hover:border-violet-400/30
+    transition-all"
 >
-  {theme === 'dark' ? (
+  {resolvedTheme === 'dark' ? (
     <Sun size={17} />
   ) : (
     <Moon size={17} />
@@ -783,10 +804,10 @@ function DashboardLayoutContent({
 </button>
 
               {/* Workspace badge */}
-              <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-800 bg-[#0f172a] px-3 py-2">
+              <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-700/80 bg-[#121a2a] px-3 py-2">
                 <ShieldCheck
                   size={14}
-                  className="text-sky-400"
+                  className="text-violet-300"
                 />
                 <span className="text-[11px] font-semibold text-slate-300">
                   Developer Workspace
@@ -815,14 +836,14 @@ function DashboardLayoutContent({
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div
             data-create-modal
-            className="w-full max-w-md rounded-2xl border border-slate-800 bg-[#0f172a] shadow-2xl shadow-black/40 overflow-hidden"
+            className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-[#121a2a] shadow-2xl shadow-black/40 overflow-hidden"
           >
-            <div className="flex items-center justify-between border-b border-slate-800 px-6 py-5">
+            <div className="flex items-center justify-between border-b border-slate-700/80 px-6 py-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-400/20 flex items-center justify-center">
                   <Layers
                     size={19}
-                    className="text-sky-400"
+                    className="text-violet-300"
                   />
                 </div>
 
@@ -865,7 +886,7 @@ function DashboardLayoutContent({
                   onChange={(event) =>
                     setNewProjectName(event.target.value)
                   }
-                  className="w-full rounded-xl border border-slate-800 bg-[#090d16] px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all focus:border-sky-500/60 focus:ring-2 focus:ring-sky-500/10"
+                  className="w-full rounded-xl border border-slate-700/80 bg-[#080b12] px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/10"
                 />
 
                 <p className="text-[11px] text-slate-500 mt-2">
@@ -888,7 +909,7 @@ function DashboardLayoutContent({
                   disabled={
                     isCreatingProject || !newProjectName.trim()
                   }
-                  className="inline-flex items-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-sky-600/15 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCreatingProject ? (
                     <Loader2
@@ -920,9 +941,9 @@ export default function DashboardLayout({
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#090d16] flex items-center justify-center text-slate-400 text-sm">
+        <div className="min-h-screen bg-[#080b12] flex items-center justify-center text-slate-400 text-sm">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-sky-500/20 animate-pulse">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-500 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-violet-500/20 animate-pulse">
               ⚡
             </div>
 

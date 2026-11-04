@@ -151,28 +151,28 @@ function OverviewContent() {
       value: formatNumber(overview.totalRequests),
       detail: 'Requests processed by the gateway',
       icon: Activity,
-      accent: 'metric-accent-red',
+      accent: 'metric-accent-violet',
     },
     {
       label: 'Fallback events',
       value: formatNumber(overview.totalFallbacks),
       detail: `${overview.fallbackRatePercentage || '0.00%'} of total requests`,
       icon: Workflow,
-      accent: 'metric-accent-yellow',
+      accent: 'metric-accent-cyan',
     },
     {
       label: 'Active API keys',
       value: formatNumber(overview.activeKeysCount),
       detail: 'Credentials available to your projects',
       icon: KeyRound,
-      accent: 'metric-accent-purple',
+      accent: 'metric-accent-indigo',
     },
     {
       label: 'Vault credentials',
       value: formatNumber(overview.configuredVaultCount),
       detail: 'Encrypted provider credentials',
       icon: ShieldCheck,
-      accent: 'metric-accent-neutral',
+      accent: 'metric-accent-emerald',
     },
   ];
 
@@ -388,7 +388,7 @@ function OverviewContent() {
         </div>
 
         {loadError && (
-          <div className="mx-5 mt-4 rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-[var(--danger)] sm:mx-6">
+          <div className="mx-5 mt-4 rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-sm text-rose-400 sm:mx-6">
             {loadError}
           </div>
         )}
@@ -509,7 +509,7 @@ export default function OverviewPage() {
     <Suspense
       fallback={
         <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-500 text-xs">
-          <Loader2 className="w-6 h-6 animate-spin text-sky-400" />
+          <Loader2 className="w-6 h-6 animate-spin text-violet-300" />
           <span>Loading project overview...</span>
         </div>
       }

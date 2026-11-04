@@ -3991,3 +3991,190 @@ body {
     padding: 13px;
   }
 }
+@import "tailwindcss";
+
+/* LIGHT THEME — CREAM & BROWN */
+:root {
+  color-scheme: light;
+
+  --background: #F5EFE3;
+  --foreground: #4A382B;
+
+  --surface: #FFFCF5;
+  --surface-secondary: #E9DDC9;
+  --surface-input: #F0E7D8;
+
+  --border: #DED0BC;
+
+  --primary: #6F4E37;
+  --primary-hover: #8B6548;
+  --primary-foreground: #FFFFFF;
+
+  --muted: #887563;
+
+  --success: #397653;
+  --danger: #B94F45;
+}
+
+/* DARK THEME — BLACK & PURPLE */
+.dark {
+  color-scheme: dark;
+
+  --background: #08080D;
+  --foreground: #F3EEFF;
+
+  --surface: #14111F;
+  --surface-secondary: #1E1930;
+  --surface-input: #0D0B14;
+
+  --border: #332849;
+
+  --primary: #A78BFA;
+  --primary-hover: #8B5CF6;
+  --primary-foreground: #FFFFFF;
+
+  --muted: #A69BB9;
+
+  --success: #34D399;
+  --danger: #FB7185;
+}
+
+/* GLOBAL STYLES */
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+}
+
+/* REUSABLE THEME CLASSES */
+@layer components {
+  .dashboard-page {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+
+  .dashboard-panel {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--foreground);
+  }
+
+  .dashboard-card {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--foreground);
+  }
+
+  .dashboard-sidebar {
+    background-color: var(--surface-secondary);
+    border-color: var(--border);
+  }
+
+  .dashboard-input {
+    background-color: var(--surface-input);
+    border: 1px solid var(--border);
+    color: var(--foreground);
+  }
+
+  .dashboard-primary {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .dashboard-primary:hover {
+    background-color: var(--primary-hover);
+  }
+
+  .dashboard-muted {
+    color: var(--muted);
+  }
+}
+@layer components {
+  .app-shell {
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  .app-sidebar {
+    background: var(--surface-secondary);
+    color: var(--foreground);
+    border-color: var(--border);
+  }
+
+  .app-header {
+    background: var(--surface);
+    color: var(--foreground);
+    border-color: var(--border);
+  }
+
+  .app-main {
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  .app-card {
+    background: var(--surface);
+    color: var(--foreground);
+    border: 1px solid var(--border);
+  }
+
+  .app-heading {
+    color: var(--foreground);
+  }
+
+  .app-description {
+    color: var(--muted);
+  }
+
+  .app-input {
+    background: var(--surface-input);
+    color: var(--foreground);
+    border: 1px solid var(--border);
+  }
+
+  .app-button-primary {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .app-button-primary:hover {
+    background: var(--primary-hover);
+  }
+}
+/* LIGHT THEME — CREAM & BROWN */
+:root {
+  color-scheme: light;
+  --background: #F5EFE3;
+  --foreground: #4A382B;
+  --surface: #FFFCF5;
+  --surface-secondary: #E9DDC9;
+  --surface-input: #F0E7D8;
+  --border: #DED0BC;
+  --primary: #6F4E37;
+  --primary-hover: #8B6548;
+  --primary-foreground: #FFFFFF;
+  --muted: #887563;
+  --success: #397653;
+  --danger: #B94F45;
+}
+
+/* DARK THEME — BLACK & PURPLE */
+.dark {
+  color-scheme: dark;
+  --background: #08080D;
+  --foreground: #F3EEFF;
+  --surface: #14111F;
+  --surface-secondary: #1E1930;
+  --surface-input: #0D0B14;
+  --border: #332849;
+  --primary: #A78BFA;
+  --primary-hover: #8B5CF6;
+  --primary-foreground: #FFFFFF;
+  --muted: #A69BB9;
+  --success: #34D399;
+  --danger: #FB7185;
+}

@@ -32,19 +32,17 @@ interface ApiKey {
   isActive?: boolean;
   createdAt: string;
 }
-
 const card =
-  'rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow)]';
+  'rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm';
 
 const primaryButton =
-  'inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-xs font-semibold text-white transition-all hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-xs font-semibold text-[var(--primary-foreground)] transition-all hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50';
 
 const secondaryButton =
   'inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-secondary)] px-3.5 py-2.5 text-xs font-semibold text-[var(--foreground)] transition-all hover:border-[var(--primary)] hover:bg-[var(--surface)] disabled:opacity-50';
 
 const inputClass =
   'w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] transition-all focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/10';
-
 export default function ApiKeysPage() {
   const [user, setUser] = useState<any>(null);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
