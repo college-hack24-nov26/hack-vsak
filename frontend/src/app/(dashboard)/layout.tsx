@@ -1,45 +1,82 @@
+
 'use client';
 
-import React, { useEffect, useState, useRef, Suspense } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
-  FolderGit2,
-  LayoutDashboard,
-  Cpu,
-  KeyRound,
-  Sliders,
-  Settings,
-  UserCircle,
-  Menu,
+  BookOpen,
   ChevronLeft,
   ChevronRight,
-  LogOut,
-  ChevronDown,
-  Plus,
+  Cpu,
+  FolderGit2,
+  KeyRound,
+  LayoutDashboard,
   Layers,
-  CheckCircle2,
-  X,
   Loader2,
-  Search,
-  ArrowLeft,
+  LogOut,
+  Menu,
+  Moon,
+  Plus,
+  Settings,
   ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Sun,
+  UserCircle,
+  X,
 } from 'lucide-react';
+
+import { useTheme } from 'next-themes';
 import { authStorage, fetchApi } from '@/lib/api';
 
-interface ProjectNavItem {
-  slug: string;
+interface NavItem {
+  href: string;
   label: string;
   icon: React.ReactNode;
 }
 
-// Strictly the 5 project-scoped items requested by user
-const PROJECT_SIDEBAR_ITEMS: ProjectNavItem[] = [
-  { slug: '', label: 'Overview', icon: <LayoutDashboard className="w-4 h-4" /> },
-  { slug: 'providers', label: 'API Providers', icon: <Cpu className="w-4 h-4" /> },
-  { slug: 'routing', label: 'Routing & Failover', icon: <Sliders className="w-4 h-4" /> },
-  { slug: 'keys', label: 'API Keys', icon: <KeyRound className="w-4 h-4" /> },
-  { slug: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
+const NAV_ITEMS: NavItem[] = [
+  {
+    href: '/dashboard',
+    label: 'Overview',
+    icon: <LayoutDashboard size={18} />,
+  },
+  {
+    href: '/dashboard/providers',
+    label: 'API Providers',
+    icon: <Cpu size={18} />,
+  },
+  {
+    href: '/dashboard/routing',
+    label: 'Routing & Failover',
+    icon: <SlidersHorizontal size={18} />,
+  },
+  {
+    href: '/dashboard/examples',
+    label: 'Live Examples',
+    icon: <Sparkles size={18} />,
+  },
+  {
+    href: '/dashboard/keys',
+    label: 'API Keys',
+    icon: <KeyRound size={18} />,
+  },
+  {
+    href: '/dashboard/docs',
+    label: 'Documentation',
+    icon: <BookOpen size={18} />,
+  },
+  {
+    href: '/dashboard/profile',
+    label: 'Profile',
+    icon: <UserCircle size={18} />,
+  },
+  {
+    href: '/dashboard/settings',
+    label: 'Settings',
+    icon: <Settings size={18} />,
+  },
 ];
 
 function DashboardLayoutContent({
@@ -50,77 +87,90 @@ function DashboardLayoutContent({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
   const [mounted, setMounted] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
 
-  // Projects State
+  const [user, setUser] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [activeProject, setActiveProject] = useState<any>(null);
-  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
-  const [projectSearch, setProjectSearch] = useState('');
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Quick Create Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [isCreatingProject, setIsCreatingProject] = useState(false);
 
-  // Is current view at Workspace level (no sidebar) or Project level (with 5-item sidebar)
+  const createInputRef = useRef<HTMLInputElement>(null);
+
   const isWorkspaceLevel =
     pathname === '/dashboard/projects' ||
     pathname === '/dashboard/profile';
 
+  const getProjectId = (project: any) =>
+    project?._id || project?.id || null;
+
   const loadProjectsList = async () => {
     try {
       const res = await fetchApi('/api/v1/projects');
-      if (res.success && res.data?.projects) {
-        setProjects(res.data.projects);
 
-        // Check if query param or storage has active project
-        const paramProjectId = searchParams.get('project') || searchParams.get('projectId');
-        const storedActive = authStorage.getActiveProject();
-        const targetId = paramProjectId || storedActive?._id;
+      if (!res.success || !Array.isArray(res.data?.projects)) {
+        return;
+      }
 
-        if (targetId) {
-          const match = res.data.projects.find((p: any) => p._id === targetId || p.id === targetId);
-          if (match) {
-            setActiveProject(match);
-            authStorage.setActiveProject(match);
-            return;
-          }
-        }
+      const projectList = res.data.projects;
+      setProjects(projectList);
 
-        // If on a project page but no project selected, redirect to workspace projects portal
-        if (!targetId && !isWorkspaceLevel) {
-          router.push('/dashboard/projects');
+      const paramProjectId =
+        searchParams.get('project') ||
+        searchParams.get('projectId');
+
+      const storedActive = authStorage.getActiveProject();
+      const targetId =
+        paramProjectId || getProjectId(storedActive);
+
+      if (targetId) {
+        const match = projectList.find(
+          (project: any) => getProjectId(project) === targetId,
+        );
+
+        if (match) {
+          setActiveProject(match);
+          authStorage.setActiveProject(match);
+          return;
         }
       }
-    } catch (err) {
-      console.error('Failed to load projects list:', err);
+
+      if (!targetId && !isWorkspaceLevel) {
+        router.push('/dashboard/projects');
+      }
+    } catch (error) {
+      console.error('Failed to load projects list:', error);
     }
   };
 
   useEffect(() => {
     setMounted(true);
+
     const token = authStorage.getToken();
+
     if (!token) {
       router.push('/login');
       return;
     }
 
     const cachedUser = authStorage.getUser();
-    if (cachedUser) setUser(cachedUser);
 
-    const paramProjectId = searchParams.get('project') || searchParams.get('projectId');
+    if (cachedUser) {
+      setUser(cachedUser);
+    }
+
     const cachedProject = authStorage.getActiveProject();
+
     if (cachedProject) {
       setActiveProject(cachedProject);
     }
 
-    // Refresh profile in background
     fetchApi('/api/v1/auth/me')
       .then((res) => {
         if (res.success && res.data?.user) {
@@ -128,65 +178,106 @@ function DashboardLayoutContent({
           authStorage.setUser(res.data.user);
         }
       })
-      .catch((err) => {
-        console.error('Failed to load user profile in layout:', err);
+      .catch((error) => {
+        console.error('Failed to load user profile:', error);
       });
 
     loadProjectsList();
 
-    // Listen to project changed events
-    const handleProjectChanged = (e: any) => {
-      const p = e.detail;
-      setActiveProject(p);
-    };
-    window.addEventListener('oneapi_project_changed', handleProjectChanged);
+    const handleProjectChanged = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const project = customEvent.detail;
 
-    // Close dropdown on click outside
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setProjectDropdownOpen(false);
+      if (project) {
+        setActiveProject(project);
       }
     };
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+
+      if (!target.closest('[data-create-modal]')) {
+        // Modal is intentionally not closed by outside clicks.
+      }
+    };
+
+    window.addEventListener(
+      'oneapi_project_changed',
+      handleProjectChanged,
+    );
+
     document.addEventListener('mousedown', handleClickOutside);
 
     return () => {
-      window.removeEventListener('oneapi_project_changed', handleProjectChanged);
+      window.removeEventListener(
+        'oneapi_project_changed',
+        handleProjectChanged,
+      );
+
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [router, pathname, searchParams]);
 
   const handleSelectProject = (project: any) => {
+    const projectId = getProjectId(project);
+
+    if (!projectId) {
+      alert('Unable to select this project. Project ID is missing.');
+      return;
+    }
+
     authStorage.setActiveProject(project);
     setActiveProject(project);
-    setProjectDropdownOpen(false);
-    window.dispatchEvent(new CustomEvent('oneapi_project_changed', { detail: project }));
 
-    const projId = project._id || project.id;
-    router.push(`/dashboard?project=${projId}`);
+    window.dispatchEvent(
+      new CustomEvent('oneapi_project_changed', {
+        detail: project,
+      }),
+    );
+
+    router.push(`/dashboard?project=${projectId}`);
   };
 
-  const handleQuickCreateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newProjectName.trim()) return;
+  const handleQuickCreateProject = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+
+    const projectName = newProjectName.trim();
+
+    if (!projectName || isCreatingProject) {
+      return;
+    }
 
     setIsCreatingProject(true);
+
     try {
       const res = await fetchApi('/api/v1/projects', {
         method: 'POST',
-        body: JSON.stringify({ name: newProjectName.trim() }),
+        body: JSON.stringify({
+          name: projectName,
+        }),
       });
 
       if (res.success && res.data?.project) {
-        const created = res.data.project;
-        setProjects((prev) => [created, ...prev]);
-        handleSelectProject(created);
+        const createdProject = res.data.project;
+
+        setProjects((previous) => [
+          createdProject,
+          ...previous,
+        ]);
+
         setIsCreateModalOpen(false);
         setNewProjectName('');
+
+        handleSelectProject(createdProject);
       } else {
-        alert(res.error?.message || 'Failed to create project');
+        alert(
+          res.error?.message || 'Failed to create project',
+        );
       }
-    } catch (err: any) {
-      alert(err.message || 'Error creating project');
+    } catch (error: any) {
+      alert(error.message || 'Error creating project');
     } finally {
       setIsCreatingProject(false);
     }
@@ -194,162 +285,241 @@ function DashboardLayoutContent({
 
   const handleLogout = async () => {
     try {
-      await fetchApi('/api/v1/auth/logout', { method: 'POST' });
-    } catch (e) {
-      // Ignore
+      await fetchApi('/api/v1/auth/logout', {
+        method: 'POST',
+      });
+    } catch {
+      // Continue with local logout if the API is unavailable.
     }
+
     authStorage.clear();
     router.push('/login');
   };
 
+  const closeCreateModal = () => {
+    if (isCreatingProject) return;
+
+    setIsCreateModalOpen(false);
+    setNewProjectName('');
+  };
+
+  useEffect(() => {
+    if (isCreateModalOpen) {
+      createInputRef.current?.focus();
+    }
+  }, [isCreateModalOpen]);
+
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-[#090d16] flex items-center justify-center text-slate-400 text-sm">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white font-black text-base animate-pulse">
+      <div className="min-h-screen bg-[#080b12] flex items-center justify-center text-slate-400">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-violet-500 to-indigo-600 flex items-center justify-center text-white text-xl shadow-lg shadow-violet-500/20 animate-pulse">
             ⚡
           </div>
-          <p>Initializing OneAPI Environment...</p>
+
+          <p className="text-sm font-medium">
+            Initializing OneAPI workspace...
+          </p>
+
+          <div className="w-32 h-1 rounded-full bg-slate-800 overflow-hidden">
+            <div className="h-full w-1/2 rounded-full bg-violet-500 animate-pulse" />
+          </div>
         </div>
       </div>
     );
   }
 
-  const activeProjectId = activeProject?._id || activeProject?.id || '';
-
-  // Filter projects inside dropdown
-  const filteredProjectsDropdown = projects.filter(
-    (p) =>
-      p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
-      p.slug.toLowerCase().includes(projectSearch.toLowerCase())
+  const currentNavItem = NAV_ITEMS.find((item) =>
+    item.href === '/dashboard'
+      ? pathname === '/dashboard'
+      : pathname.startsWith(item.href),
   );
 
-  // =========================================================================
-  // VIEW 1: WORKSPACE LEVEL (NO SIDEBAR - ONLY HEADER)
-  // Used on /dashboard/projects and /dashboard/profile
-  // =========================================================================
+  const pageTitle = currentNavItem?.label || 'Developer Gateway';
+
+  const initials = user?.name
+    ? user.name
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part: string) => part[0])
+        .join('')
+        .toUpperCase()
+    : 'DV';
+
+  const activeProjectName =
+    activeProject?.name || 'Select Project';
+
+  // ============================================================
+  // WORKSPACE LEVEL
+  // Projects and Profile pages use a clean header without sidebar.
+  // ============================================================
+
   if (isWorkspaceLevel) {
     return (
-      <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans">
-        {/* Workspace Clean Top Header Only (NO SIDEBAR) */}
-        <header className="h-16 border-b border-slate-800/80 bg-[#0b0f19]/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
-          <div className="flex items-center gap-6">
-            {/* Brand Logo */}
-            <Link href="/dashboard/projects" className="flex items-center gap-2.5">
-              <span className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white font-black text-base shadow-md shadow-sky-500/20">
-                ⚡
-              </span>
-              <span className="text-lg font-bold tracking-tight text-white">
-                One<span className="text-sky-400">API</span>
-              </span>
-            </Link>
-
-            {/* Header Navigation */}
-            <nav className="flex items-center gap-2">
+      <div className="min-h-screen bg-[#080b12] text-slate-100 flex flex-col font-sans">
+        <header className="sticky top-0 z-40 h-16 shrink-0 border-b border-slate-700/80/70 bg-[#0d111b]/90 backdrop-blur-xl">
+          <div className="h-full max-w-[1600px] mx-auto px-4 sm:px-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-6">
               <Link
                 href="/dashboard/projects"
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  pathname === '/dashboard/projects'
-                    ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                className="flex items-center gap-2.5 shrink-0"
+              >
+                <span className="w-9 h-9 rounded-xl bg-gradient-to-tr from-violet-500 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-violet-500/20">
+                  ⚡
+                </span>
+
+                <span className="text-lg font-bold tracking-tight text-white">
+                  One<span className="text-violet-300">API</span>
+                </span>
+              </Link>
+
+              <div className="hidden sm:block h-7 w-px bg-slate-800" />
+
+              <nav className="hidden sm:flex items-center">
+                <Link
+                  href="/dashboard/projects"
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${
+                    pathname === '/dashboard/projects'
+                      ? 'bg-violet-500/10 text-violet-300 border border-violet-400/20'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  <FolderGit2 size={16} />
+                  Projects
+                </Link>
+              </nav>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-500 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-violet-600/20 transition-all"
+              >
+                <Plus size={16} />
+                <span className="hidden xs:inline">New Project</span>
+                <span className="xs:hidden">New</span>
+              </button>
+
+              <Link
+                href="/dashboard/profile"
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs sm:text-sm font-medium transition-all ${
+                  pathname === '/dashboard/profile'
+                    ? 'border-violet-400/30 bg-violet-500/10 text-violet-300'
+                    : 'border-slate-700/80 bg-[#121a2a] text-slate-300 hover:border-slate-700 hover:text-white'
                 }`}
               >
-                <FolderGit2 className="w-3.5 h-3.5" />
-                <span>Projects</span>
+                <span className="w-6 h-6 rounded-lg bg-violet-500/15 text-violet-300 flex items-center justify-center text-xs font-bold">
+                  {initials.slice(0, 1)}
+                </span>
+
+                <span className="hidden md:inline max-w-32 truncate">
+                  {user?.name || 'Profile'}
+                </span>
               </Link>
-            </nav>
-          </div>
 
-          {/* Right Actions: Create Project, Profile, Logout */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-sky-600/20 transition-all cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>New Project</span>
-            </button>
-
-            <Link
-              href="/dashboard/profile"
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                pathname === '/dashboard/profile'
-                  ? 'bg-sky-500/15 text-sky-300 border-sky-500/40 shadow-sm'
-                  : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <div className="w-5 h-5 rounded-md bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold text-[10px]">
-                {user?.name ? user.name.slice(0, 1).toUpperCase() : 'U'}
-              </div>
-              <span className="hidden sm:inline">{user?.name || 'Profile'}</span>
-            </Link>
-
-            <button
-              onClick={handleLogout}
-              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl cursor-pointer transition-colors"
-              title="Sign Out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                title="Sign out"
+                aria-label="Sign out"
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+              >
+                <LogOut size={17} />
+              </button>
+            </div>
           </div>
         </header>
 
-        {/* Main Content Area (Full Width, Centered) */}
-        <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8">
           {children}
         </main>
 
-        {/* Modal: Quick Create Project */}
         {isCreateModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-sky-400" />
-                  Create New Project
-                </h3>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div
+              data-create-modal
+              className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-[#121a2a] shadow-2xl shadow-black/40 overflow-hidden"
+            >
+              <div className="flex items-center justify-between border-b border-slate-700/80 px-6 py-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-400/20 flex items-center justify-center">
+                    <Layers size={19} className="text-violet-300" />
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-bold text-white">
+                      Create New Project
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Set up a new API workspace
+                    </p>
+                  </div>
+                </div>
+
                 <button
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="text-slate-500 hover:text-white"
+                  type="button"
+                  onClick={closeCreateModal}
+                  disabled={isCreatingProject}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
                 >
-                  <X className="w-4 h-4" />
+                  <X size={17} />
                 </button>
               </div>
 
-              <form onSubmit={handleQuickCreateProject} className="space-y-4">
+              <form
+                onSubmit={handleQuickCreateProject}
+                className="p-6 space-y-5"
+              >
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-300 mb-2">
                     Project Name
                   </label>
+
                   <input
+                    ref={createInputRef}
                     type="text"
                     required
-                    placeholder="e.g. Chatbot Router, Mobile Backend"
+                    maxLength={80}
+                    placeholder="e.g. Chatbot Router"
                     value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-sky-500/60"
+                    onChange={(event) =>
+                      setNewProjectName(event.target.value)
+                    }
+                    className="w-full rounded-xl border border-slate-700/80 bg-[#080b12] px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/10"
                   />
+
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    Give your project a clear and recognizable name.
+                  </p>
                 </div>
 
-                <div className="flex items-center justify-end gap-2.5 pt-2">
+                <div className="flex items-center justify-end gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setIsCreateModalOpen(false)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white"
+                    onClick={closeCreateModal}
+                    disabled={isCreatingProject}
+                    className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white transition-all disabled:opacity-50"
                   >
                     Cancel
                   </button>
+
                   <button
                     type="submit"
-                    disabled={isCreatingProject}
-                    className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-sky-600/20"
+                    disabled={
+                      isCreatingProject || !newProjectName.trim()
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isCreatingProject ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 size={15} className="animate-spin" />
                     ) : (
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus size={15} />
                     )}
-                    <span>Create Project</span>
+                    {isCreatingProject
+                      ? 'Creating...'
+                      : 'Create Project'}
                   </button>
                 </div>
               </form>
@@ -360,336 +530,399 @@ function DashboardLayoutContent({
     );
   }
 
-  // =========================================================================
-  // VIEW 2: PROJECT LEVEL (WITH 5-ITEM SIDEBAR & SEARCH PARAMS)
-  // Shows only: Overview, API Providers, Routing & Failover, API Keys, Settings
-  // =========================================================================
+  // ============================================================
+  // PROJECT LEVEL
+  // Main dashboard with responsive sidebar.
+  // ============================================================
+
   return (
-    <div className="flex h-screen bg-[#090d16] text-slate-100 overflow-hidden font-sans">
-      {/* ------------------------------------------------------------- */}
-      {/* 1. PROJECT SIDEBAR (STRICTLY 5 ITEMS)                         */}
-      {/* ------------------------------------------------------------- */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-[#0b0f19] border-r border-slate-800/80 transition-all duration-300 ease-in-out md:static ${
-          sidebarCollapsed ? 'w-20' : 'w-64'
-        } ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
-      >
-        {/* Brand & Back to Projects Button */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800/80 shrink-0">
-          <Link
-            href="/dashboard/projects"
-            className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors group"
-            title="Return to Projects List"
-          >
-            <div className="w-7 h-7 rounded-lg bg-slate-900 group-hover:bg-slate-800 border border-slate-800 flex items-center justify-center text-slate-300 group-hover:text-white transition-colors">
-              <ArrowLeft className="w-3.5 h-3.5" />
-            </div>
-            {!sidebarCollapsed && <span className="truncate">All Projects</span>}
-          </Link>
-
-          {/* Desktop Collapse Toggle */}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 cursor-pointer transition-colors"
-            title={sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          >
-            {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
-
-          {/* Mobile Close Button */}
-          <button
-            onClick={() => setMobileMenuOpen(false)}
-            className="md:hidden p-1.5 text-slate-400 hover:text-white"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Project Scope Badge in Sidebar */}
-        {!sidebarCollapsed && activeProject && (
-          <div className="p-3 border-b border-slate-800/60 bg-[#0d1322]/50">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold text-xs shrink-0">
-                {activeProject.name.slice(0, 2).toUpperCase()}
-              </div>
-              <div className="overflow-hidden">
-                <div className="text-xs font-bold text-white truncate">{activeProject.name}</div>
-                <div className="text-[10px] font-mono text-slate-500 truncate">slug: {activeProject.slug}</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 5 Project Navigation Items */}
-        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
-          {PROJECT_SIDEBAR_ITEMS.map((item) => {
-            const itemPath = item.slug ? `/dashboard/${item.slug}` : '/dashboard';
-            const isActive =
-              item.slug === ''
-                ? pathname === '/dashboard'
-                : pathname === itemPath || pathname.startsWith(`${itemPath}/`);
-
-            const projectQuery = activeProjectId ? `?project=${activeProjectId}` : '';
-            const href = `${itemPath}${projectQuery}`;
-
-            return (
-              <Link
-                key={item.label}
-                href={href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-                  isActive
-                    ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30 shadow-sm shadow-sky-500/10 font-bold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850/60 border border-transparent'
-                } ${sidebarCollapsed ? 'justify-center px-0' : ''}`}
-                title={sidebarCollapsed ? item.label : undefined}
-              >
-                <span className="shrink-0">{item.icon}</span>
-                {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* User Mini Profile & Logout */}
-        <div className="p-3 border-t border-slate-800/80 bg-[#090d16]/60 shrink-0">
-          {!sidebarCollapsed ? (
-            <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-900/60 border border-slate-800">
-              <Link href="/dashboard/profile" className="flex items-center gap-2.5 overflow-hidden flex-1 group">
-                <div className="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold text-xs shrink-0 group-hover:bg-sky-500/30 transition-colors">
-                  {user?.name ? user.name.slice(0, 2).toUpperCase() : 'DV'}
-                </div>
-                <div className="overflow-hidden text-left">
-                  <div className="text-xs font-semibold text-white group-hover:text-sky-300 truncate transition-colors">
-                    {user?.name || 'Developer'}
-                  </div>
-                  <div className="text-[10px] text-slate-400 truncate">Profile & Settings</div>
-                </div>
-              </Link>
-
-              <button
-                onClick={handleLogout}
-                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer transition-colors"
-                title="Sign Out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center p-2.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl cursor-pointer transition-colors"
-              title="Sign Out"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-      </aside>
-
-      {/* Mobile Backdrop */}
+    <div className="min-h-screen bg-[#080b12] text-slate-100 font-sans">
+      {/* Mobile backdrop */}
       {mobileMenuOpen && (
-        <div
+        <button
+          type="button"
+          aria-label="Close navigation"
           onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden"
         />
       )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* 2. PROJECT MAIN CONTENT WITH HEADER SWITCHER                  */}
-      {/* ------------------------------------------------------------- */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#090d16]">
-        {/* Top Header Bar */}
-        <header className="h-16 border-b border-slate-800/80 bg-[#0f172a]/70 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between shrink-0 z-20">
-          <div className="flex items-center gap-3">
-            {/* Mobile Menu Button */}
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+      {/* Sidebar */}
+    {/* Sidebar */}
+<aside
+  className={`fixed inset-y-0 left-0 z-50 flex flex-col
+    border-r border-[var(--border)]
+    bg-[var(--surface-secondary)]
+    text-[var(--foreground)]
+    transition-all duration-300
+    ${
+      sidebarCollapsed ? 'w-[76px]' : 'w-[260px]'
+    }
+    ${
+      mobileMenuOpen
+        ? 'translate-x-0'
+        : '-translate-x-full lg:translate-x-0'
+    }`}
+>
+  {/* Brand */}
+  <div className="h-16 shrink-0 flex items-center justify-between border-b border-[var(--border)] px-4">
+    <Link
+      href="/dashboard"
+      className="flex items-center gap-3 min-w-0"
+    >
+      <span className="w-9 h-9 shrink-0 rounded-xl bg-[var(--primary)] flex items-center justify-center text-[var(--primary-foreground)] font-black text-lg shadow-md">
+        ⚡
+      </span>
+
+      {!sidebarCollapsed && (
+        <span className="text-lg font-bold tracking-tight text-[var(--foreground)] whitespace-nowrap">
+          One<span className="text-[var(--primary)]">API</span>
+        </span>
+      )}
+    </Link>
+
+    <button
+      type="button"
+      onClick={() =>
+        setSidebarCollapsed((previous) => !previous)
+      }
+      title={
+        sidebarCollapsed
+          ? 'Expand sidebar'
+          : 'Collapse sidebar'
+      }
+      className="hidden lg:flex w-8 h-8 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--primary)] hover:bg-[var(--surface)] transition-all"
+    >
+      {sidebarCollapsed ? (
+        <ChevronRight size={17} />
+      ) : (
+        <ChevronLeft size={17} />
+      )}
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setMobileMenuOpen(false)}
+      aria-label="Close sidebar"
+      className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--primary)] hover:bg-[var(--surface)]"
+    >
+      <X size={19} />
+    </button>
+  </div>
+
+  {/* Navigation */}
+  <div className="flex-1 overflow-y-auto px-3 py-6">
+    {!sidebarCollapsed && (
+      <p className="px-3 mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">
+        Workspace
+      </p>
+    )}
+
+    <nav className="space-y-1">
+      {NAV_ITEMS.map((item) => {
+        const isActive =
+          item.href === '/dashboard'
+            ? pathname === '/dashboard'
+            : pathname.startsWith(item.href);
+
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={() => setMobileMenuOpen(false)}
+            title={
+              sidebarCollapsed ? item.label : undefined
+            }
+            className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200
+              ${
+                isActive
+                  ? 'border border-[var(--primary)]/25 bg-[var(--primary)]/10 text-[var(--primary)] shadow-sm'
+                  : 'border border-transparent text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]'
+              }
+              ${
+                sidebarCollapsed
+                  ? 'justify-center px-0'
+                  : ''
+              }`}
+          >
+            <span
+              className={`shrink-0 transition-colors ${
+                isActive
+                  ? 'text-[var(--primary)]'
+                  : 'text-[var(--muted)] group-hover:text-[var(--primary)]'
+              }`}
             >
-              <Menu className="w-5 h-5" />
-            </button>
+              {item.icon}
+            </span>
 
-            {/* Vercel-Style Breadcrumb & Project Switcher */}
-            <div className="flex items-center gap-2 text-xs sm:text-sm font-medium">
-              <Link
-                href="/dashboard/projects"
-                className="text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors"
-                title="View All Projects"
-              >
-                <span className="w-6 h-6 rounded-lg bg-gradient-to-tr from-sky-500 to-blue-600 text-white font-bold text-[11px] flex items-center justify-center shadow-sm shadow-sky-500/20">
-                  {user?.name ? user.name.slice(0, 1).toUpperCase() : 'O'}
+            {!sidebarCollapsed && (
+              <>
+                <span className="truncate">
+                  {item.label}
                 </span>
-                <span className="hidden sm:inline font-semibold">Projects</span>
-              </Link>
 
-              <span className="text-slate-600 font-light text-base select-none">/</span>
-
-              {/* Active Project Switcher Dropdown */}
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-white transition-all cursor-pointer shadow-sm"
-                >
-                  <Layers className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                  <span className="max-w-[110px] sm:max-w-[180px] truncate">
-                    {activeProject?.name || 'Select Project'}
-                  </span>
-                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${projectDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {/* Dropdown Menu */}
-                {projectDropdownOpen && (
-                  <div className="absolute left-0 mt-2 w-72 rounded-2xl bg-[#0f172a] border border-slate-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                    <div className="px-2 pb-2">
-                      <div className="relative">
-                        <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <input
-                          type="text"
-                          placeholder="Search projects..."
-                          value={projectSearch}
-                          onChange={(e) => setProjectSearch(e.target.value)}
-                          className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-sky-500/50"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="px-2 py-1 text-[10px] uppercase font-mono font-bold tracking-wider text-slate-500">
-                      Projects ({filteredProjectsDropdown.length})
-                    </div>
-
-                    <div className="max-h-60 overflow-y-auto space-y-1 py-1">
-                      {filteredProjectsDropdown.map((p) => {
-                        const isCurrent = activeProject?._id === p._id;
-                        return (
-                          <button
-                            key={p._id}
-                            onClick={() => handleSelectProject(p)}
-                            className={`w-full text-left px-2.5 py-2 rounded-xl text-xs flex items-center justify-between transition-colors ${
-                              isCurrent
-                                ? 'bg-sky-500/15 text-sky-300 font-bold border border-sky-500/30'
-                                : 'text-slate-300 hover:bg-slate-850/80 hover:text-white'
-                            }`}
-                          >
-                            <div className="truncate pr-2">
-                              <div className="truncate font-semibold">{p.name}</div>
-                              <div className="text-[10px] font-mono text-slate-500 truncate">slug: {p.slug}</div>
-                            </div>
-                            {isCurrent && <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="mt-1.5 pt-1.5 border-t border-slate-800/80 space-y-1">
-                      <Link
-                        href="/dashboard/projects"
-                        onClick={() => setProjectDropdownOpen(false)}
-                        className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800/70 flex items-center gap-2 font-medium"
-                      >
-                        <FolderGit2 className="w-3.5 h-3.5 text-slate-400" />
-                        <span>All Projects Portal</span>
-                      </Link>
-
-                      <button
-                        onClick={() => {
-                          setProjectDropdownOpen(false);
-                          setIsCreateModalOpen(true);
-                        }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs text-sky-400 hover:bg-sky-500/10 flex items-center gap-2 font-semibold transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Create New Project</span>
-                      </button>
-                    </div>
-                  </div>
+                {isActive && (
+                  <span className="absolute right-3 h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
                 )}
+              </>
+            )}
+          </Link>
+        );
+      })}
+    </nav>
+  </div>
+
+  {/* Sidebar Bottom */}
+  <div className="shrink-0 border-t border-[var(--border)] p-3">
+    {/* Gateway Status */}
+    <div
+      className={`flex items-center gap-2 px-3 py-2.5 mb-3 rounded-xl border border-[var(--success)]/20 bg-[var(--success)]/5 ${
+        sidebarCollapsed ? 'justify-center px-0' : ''
+      }`}
+      title="All systems operational"
+    >
+      <span className="relative flex h-2 w-2 shrink-0">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-50" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--success)]" />
+      </span>
+
+      {!sidebarCollapsed && (
+        <span className="text-[11px] font-semibold text-[var(--success)]">
+          All systems operational
+        </span>
+      )}
+    </div>
+
+    {/* User Profile */}
+    <div
+      className={`flex items-center gap-3 rounded-xl p-2 hover:bg-[var(--surface)] transition-colors ${
+        sidebarCollapsed ? 'justify-center' : ''
+      }`}
+    >
+      <div className="w-9 h-9 shrink-0 rounded-xl bg-[var(--primary)]/10 border border-[var(--primary)]/20 flex items-center justify-center text-xs font-bold text-[var(--primary)]">
+        {initials}
+      </div>
+
+      {!sidebarCollapsed && (
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold text-[var(--foreground)] truncate">
+            {user?.name || 'Developer'}
+          </p>
+
+          <p className="text-[10px] text-[var(--muted)] truncate mt-0.5">
+            {user?.email || 'dev@oneapi.io'}
+          </p>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={handleLogout}
+        title="Sign out"
+        aria-label="Sign out"
+        className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--danger)]/10 transition-all"
+      >
+        <LogOut size={16} />
+      </button>
+    </div>
+  </div>
+</aside>
+
+      {/* Main area */}
+      <div
+        className={`min-h-screen flex flex-col transition-all duration-300 ${
+          sidebarCollapsed ? 'lg:ml-[76px]' : 'lg:ml-[260px]'
+        }`}
+      >
+        {/* Topbar */}
+        <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-slate-700/80/70 bg-[#0d111b]/85 backdrop-blur-xl">
+          <div className="h-full px-4 sm:px-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label="Open navigation"
+                className="lg:hidden w-9 h-9 shrink-0 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+              >
+                <Menu size={20} />
+              </button>
+
+              <div className="min-w-0">
+                <div className="hidden sm:flex items-center gap-2 text-[11px] text-slate-500 mb-0.5">
+                  <span>Workspace</span>
+                  <ChevronRight size={12} />
+                  <span className="text-slate-400">
+                    {pageTitle}
+                  </span>
+                </div>
+
+                <h1 className="text-sm sm:text-base font-bold text-white truncate">
+                  {pageTitle}
+                </h1>
               </div>
             </div>
-          </div>
 
-          {/* Right Action Icons & Status */}
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <Link
-              href="/dashboard/projects"
-              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition-all"
-            >
-              <FolderGit2 className="w-3.5 h-3.5 text-sky-400" />
-              <span>Projects</span>
-            </Link>
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Active project indicator */}
+              {activeProject && (
+                <div
+                  className="hidden md:flex items-center gap-2 max-w-48 rounded-xl border border-slate-700/80 bg-[#121a2a] px-3 py-2"
+                  title={activeProjectName}
+                >
+                  <FolderGit2
+                    size={14}
+                    className="text-violet-300 shrink-0"
+                  />
+                  <span className="text-xs font-medium text-slate-300 truncate">
+                    {activeProjectName}
+                  </span>
+                </div>
+              )}
 
-            <Link
-              href="/dashboard/profile"
-              className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-              title="Developer Profile"
-            >
-              <UserCircle className="w-4 h-4 text-sky-400" />
-            </Link>
+              {/* Theme toggle */}
+              <button
+  type="button"
+  onClick={() =>
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
+  }
+  title={`Switch to ${
+    resolvedTheme === 'dark' ? 'light' : 'dark'
+  } mode`}
+  aria-label="Toggle theme"
+  className="w-9 h-9 rounded-xl flex items-center justify-center
+    border border-slate-200 bg-white text-slate-500
+    hover:text-violet-400 hover:border-violet-300
+    dark:border-slate-700/80 dark:bg-[#121a2a] dark:text-slate-400
+    dark:hover:text-violet-300 dark:hover:border-violet-400/30
+    transition-all"
+>
+  {resolvedTheme === 'dark' ? (
+    <Sun size={17} />
+  ) : (
+    <Moon size={17} />
+  )}
+</button>
 
-            <div className="flex items-center gap-2 text-xs font-semibold px-2.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="hidden sm:inline">Active Scope</span>
+              {/* Workspace badge */}
+              <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-700/80 bg-[#121a2a] px-3 py-2">
+                <ShieldCheck
+                  size={14}
+                  className="text-violet-300"
+                />
+                <span className="text-[11px] font-semibold text-slate-300">
+                  Developer Workspace
+                </span>
+              </div>
+
+              {/* Gateway status */}
+              <div className="hidden xl:flex items-center gap-2 rounded-xl border border-emerald-500/15 bg-emerald-500/5 px-3 py-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+                <span className="text-[11px] font-semibold text-emerald-400">
+                  Gateway Online
+                </span>
+              </div>
             </div>
           </div>
         </header>
 
-        {/* Dynamic Page Body */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6">
+        {/* Page content */}
+        <main className="flex-1 w-full min-w-0 p-4 sm:p-6 lg:p-8">
           {children}
         </main>
       </div>
 
-      {/* Quick Create Project Modal from Header */}
+      {/* Create Project Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Layers className="w-4 h-4 text-sky-400" />
-                New Project
-              </h3>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div
+            data-create-modal
+            className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-[#121a2a] shadow-2xl shadow-black/40 overflow-hidden"
+          >
+            <div className="flex items-center justify-between border-b border-slate-700/80 px-6 py-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-400/20 flex items-center justify-center">
+                  <Layers
+                    size={19}
+                    className="text-violet-300"
+                  />
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-bold text-white">
+                    Create New Project
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Set up a new API workspace
+                  </p>
+                </div>
+              </div>
+
               <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="text-slate-500 hover:text-white"
+                type="button"
+                onClick={closeCreateModal}
+                disabled={isCreatingProject}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
               >
-                <X className="w-4 h-4" />
+                <X size={17} />
               </button>
             </div>
 
-            <form onSubmit={handleQuickCreateProject} className="space-y-4">
+            <form
+              onSubmit={handleQuickCreateProject}
+              className="p-6 space-y-5"
+            >
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-semibold text-slate-300 mb-2">
                   Project Name
                 </label>
+
                 <input
+                  ref={createInputRef}
                   type="text"
                   required
-                  placeholder="e.g. Chatbot Router, Mobile Backend"
+                  maxLength={80}
+                  placeholder="e.g. Chatbot Router"
                   value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-sky-500/50"
+                  onChange={(event) =>
+                    setNewProjectName(event.target.value)
+                  }
+                  className="w-full rounded-xl border border-slate-700/80 bg-[#080b12] px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/10"
                 />
+
+                <p className="text-[11px] text-slate-500 mt-2">
+                  Give your project a clear and recognizable name.
+                </p>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white"
+                  onClick={closeCreateModal}
+                  disabled={isCreatingProject}
+                  className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  disabled={isCreatingProject}
-                  className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-sky-600/20"
+                  disabled={
+                    isCreatingProject || !newProjectName.trim()
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCreatingProject ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <Loader2
+                      size={15}
+                      className="animate-spin"
+                    />
                   ) : (
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus size={15} />
                   )}
-                  <span>Create Project</span>
+
+                  {isCreatingProject
+                    ? 'Creating...'
+                    : 'Create Project'}
                 </button>
               </div>
             </form>
@@ -708,17 +941,20 @@ export default function DashboardLayout({
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#090d16] flex items-center justify-center text-slate-400 text-sm">
+        <div className="min-h-screen bg-[#080b12] flex items-center justify-center text-slate-400 text-sm">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white font-black text-base animate-pulse">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-500 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-violet-500/20 animate-pulse">
               ⚡
             </div>
-            <p>Loading Workspace...</p>
+
+            <p>Loading OneAPI Workspace...</p>
           </div>
         </div>
       }
     >
-      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+      <DashboardLayoutContent>
+        {children}
+      </DashboardLayoutContent>
     </Suspense>
   );
 }

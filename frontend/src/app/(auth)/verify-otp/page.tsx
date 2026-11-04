@@ -1,9 +1,18 @@
+
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ShieldCheck, Mail, ArrowRight, RefreshCw, ArrowLeft } from 'lucide-react';
+import {
+  ShieldCheck,
+  Mail,
+  ArrowRight,
+  RefreshCw,
+  ArrowLeft,
+  Zap,
+  CheckCircle2,
+} from 'lucide-react';
 import { fetchApi, authStorage } from '@/lib/api';
 
 function VerifyOtpContent() {
@@ -19,6 +28,7 @@ function VerifyOtpContent() {
 
   useEffect(() => {
     const emailParam = searchParams.get('email');
+
     if (emailParam) {
       setEmail(emailParam);
     }
@@ -26,6 +36,7 @@ function VerifyOtpContent() {
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
+
     setError(null);
     setSuccessMsg(null);
 
@@ -48,9 +59,8 @@ function VerifyOtpContent() {
         return;
       }
 
-      setSuccessMsg('Account verified successfully! Logging you in...');
+      setSuccessMsg('Email verified successfully! Redirecting...');
 
-      // Save tokens and session
       if (res.data?.tokens) {
         authStorage.setToken(res.data.tokens.accessToken);
         authStorage.setRefreshToken(res.data.tokens.refreshToken);
@@ -60,6 +70,7 @@ function VerifyOtpContent() {
       setTimeout(() => {
         router.push('/dashboard');
       }, 1000);
+
     } catch (err: any) {
       setError(err.message || 'Verification failed.');
       setLoading(false);
@@ -68,7 +79,7 @@ function VerifyOtpContent() {
 
   const handleResend = async () => {
     if (!email) {
-      setError('Email address is required to resend verification code.');
+      setError('Email address is required.');
       return;
     }
 
@@ -83,110 +94,212 @@ function VerifyOtpContent() {
       });
 
       if (!res.success) {
-        setError(res.error?.message || 'Failed to dispatch new OTP.');
+        setError(res.error?.message || 'Failed to resend OTP.');
         setResending(false);
         return;
       }
 
-      setSuccessMsg('A new 6-digit code has been dispatched. (Check backend dev console)');
+      setSuccessMsg('A new verification code has been sent.');
       setResending(false);
+
     } catch (err: any) {
-      setError(err.message || 'Error requesting code resend.');
+      setError(err.message || 'Unable to resend verification code.');
       setResending(false);
     }
   };
 
   return (
-    <div>
-      <div className="mb-6 text-center">
-        <div className="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center mx-auto mb-3">
-          <ShieldCheck className="w-6 h-6" />
-        </div>
-        <h2 className="text-xl font-bold text-white tracking-tight">Verify Your Email</h2>
-        <p className="text-xs text-slate-400 mt-1">
-          Enter the 6-digit verification code sent to your email address (check backend console in dev mode).
-        </p>
-      </div>
+    <main className="otp-page">
 
-      {error && (
-        <div className="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium">
-          {error}
-        </div>
-      )}
+      {/* Background decoration */}
+      <div className="otp-glow otp-glow-one" />
+      <div className="otp-glow otp-glow-two" />
 
-      {successMsg && (
-        <div className="mb-5 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
-          {successMsg}
-        </div>
-      )}
+      {/* Brand */}
+      <Link href="/" className="otp-brand">
+        <span className="otp-brand-icon">
+          <Zap className="w-5 h-5 fill-white" />
+        </span>
 
-      <form onSubmit={handleVerify} className="space-y-4">
-        <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1.5">Email Address</label>
-          <div className="relative">
-            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-            <input
-              type="email"
-              placeholder="developer@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-900/60 border border-slate-700/80 rounded-xl text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-colors"
-            />
+        <span>
+          One<span className="text-blue-500">API</span>
+        </span>
+      </Link>
+
+      {/* Center card */}
+      <div className="otp-content">
+
+        <div className="otp-card">
+
+          {/* Icon */}
+          <div className="otp-icon">
+            <ShieldCheck className="w-7 h-7" />
           </div>
-        </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1.5">6-Digit OTP Code</label>
-          <input
-            type="text"
-            placeholder="123456"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            maxLength={6}
-            required
-            className="w-full px-4 py-2.5 bg-slate-900/60 border border-slate-700/80 rounded-xl text-white text-center text-lg tracking-widest font-mono font-bold placeholder:text-slate-600 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-colors"
-          />
-        </div>
+          {/* Heading */}
+          <div className="text-center mt-6 mb-8">
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-semibold text-sm h-11 rounded-xl shadow-lg shadow-sky-500/25 mt-2 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
-        >
-          {loading ? (
-            <span>Verifying...</span>
-          ) : (
-            <>
-              <span>Verify & Continue</span>
-              <ArrowRight className="w-4 h-4" />
-            </>
+            <span className="otp-eyebrow">
+              ACCOUNT SECURITY
+            </span>
+
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 tracking-tight">
+              Verify your email
+            </h1>
+
+            <p className="text-sm text-slate-400 mt-3 leading-6">
+              We've sent a verification code to your email address.
+              Enter the six-digit code below to activate your account.
+            </p>
+
+          </div>
+
+          {/* Messages */}
+          {error && (
+            <div
+              role="alert"
+              className="otp-error mb-5"
+            >
+              {error}
+            </div>
           )}
-        </button>
-      </form>
 
-      <div className="mt-6 flex items-center justify-between text-xs text-slate-400">
-        <button
-          type="button"
-          onClick={handleResend}
-          disabled={resending}
-          className="text-sky-400 hover:underline inline-flex items-center gap-1 font-semibold disabled:opacity-50 cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${resending ? 'animate-spin' : ''}`} />
-          {resending ? 'Sending...' : 'Resend Code'}
-        </button>
+          {successMsg && (
+            <div
+              role="status"
+              className="otp-success mb-5"
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              {successMsg}
+            </div>
+          )}
 
-        <Link href="/login" className="inline-flex items-center gap-1 hover:text-slate-200">
-          <ArrowLeft className="w-3.5 h-3.5" /> Back to Sign In
-        </Link>
+          {/* Form */}
+          <form onSubmit={handleVerify} className="space-y-6">
+
+            {/* Email */}
+            <div>
+              <label className="otp-label">
+                Email address
+              </label>
+
+              <div className="relative">
+                <Mail className="otp-input-icon" />
+
+               
+<input
+  type="email"
+  placeholder="developer@example.com"
+  value={email}
+  onChange={(e) => setEmail(e.target.value)}
+  required
+  autoComplete="email"
+  className="otp-input !pl-14"
+/>
+
+              </div>
+            </div>
+
+            {/* OTP */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="otp-label mb-0">
+                  Verification code
+                </label>
+
+                <span className="text-xs text-blue-400 font-medium">
+                  6 DIGITS
+                </span>
+              </div>
+
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="000000"
+                value={otp}
+                onChange={(e) =>
+                  setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))
+                }
+                maxLength={6}
+                required
+                className="otp-input otp-code-input"
+              />
+
+              <p className="text-xs text-slate-500 mt-2">
+                Enter the code sent to your registered email.
+              </p>
+            </div>
+
+            {/* Verify */}
+            <button
+              type="submit"
+              disabled={loading || otp.length !== 6}
+              className="otp-submit"
+            >
+              {loading ? (
+                <>
+                  <span className="otp-spinner" />
+                  Verifying...
+                </>
+              ) : (
+                <>
+                  Verify & Continue
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+
+          </form>
+
+          {/* Resend */}
+          <div className="otp-divider" />
+
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resending}
+              className="otp-resend"
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${resending ? 'animate-spin' : ''}`}
+              />
+
+              {resending ? 'Sending code...' : 'Resend verification code'}
+            </button>
+
+            <Link href="/login" className="otp-back">
+              <ArrowLeft className="w-4 h-4" />
+              Back to sign in
+            </Link>
+
+          </div>
+
+        </div>
+
+        {/* Footer */}
+        <div className="otp-footer">
+          <ShieldCheck className="w-4 h-4" />
+          Secure verification powered by OneAPI
+        </div>
+
       </div>
-    </div>
+
+    </main>
   );
 }
 
 export default function VerifyOtpPage() {
   return (
-    <Suspense fallback={<div className="text-center text-xs text-slate-400 py-6">Loading verification...</div>}>
+    <Suspense
+      fallback={
+        <div className="otp-page flex items-center justify-center text-slate-400">
+          Loading verification...
+        </div>
+      }
+    >
       <VerifyOtpContent />
     </Suspense>
   );

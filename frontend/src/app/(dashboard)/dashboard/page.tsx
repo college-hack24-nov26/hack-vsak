@@ -1,24 +1,36 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useCallback, useEffect, useState ,Suspense} from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
-  LayoutDashboard,
-  Cpu,
-  KeyRound,
-  Shield,
   Activity,
-  Terminal,
-  RefreshCw,
-  Zap,
-  Clock,
+  ArrowDownRight,
   ArrowRight,
-  Layers,
-  Settings,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock3,
+  KeyRound,
+  Layers3,
   Loader2,
+  RefreshCw,
+  ShieldCheck,
+  TerminalSquare,
+  Workflow,
+  Zap,
 } from 'lucide-react';
 import { authStorage, fetchApi } from '@/lib/api';
+
+interface GatewayLog {
+  _id?: string;
+  createdAt: string;
+  category?: string;
+  endpoint?: string;
+  finalProvider?: string;
+  statusCode?: number;
+  latencyMs?: number;
+  fallbackTriggered?: boolean;
+}
 
 interface OverviewData {
   totalRequests: number;
@@ -27,7 +39,45 @@ interface OverviewData {
   averageLatencyMs: number;
   activeKeysCount: number;
   configuredVaultCount: number;
-  recentLogs: any[];
+  recentLogs: GatewayLog[];
+}
+
+const initialOverview: OverviewData = {
+  totalRequests: 0,
+  totalFallbacks: 0,
+  fallbackRatePercentage: '0.00%',
+  averageLatencyMs: 0,
+  activeKeysCount: 0,
+  configuredVaultCount: 0,
+  recentLogs: [],
+};
+
+function formatNumber(value?: number) {
+  return new Intl.NumberFormat('en-IN').format(value ?? 0);
+}
+
+function formatTime(value?: string) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function getInitials(name?: string) {
+  if (!name?.trim()) return 'D';
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
 }
 
 function OverviewContent() {
@@ -35,19 +85,13 @@ function OverviewContent() {
 
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
-  const [currentProject, setCurrentProject] = useState<any>(null);
-  const [overview, setOverview] = useState<OverviewData>({
-    totalRequests: 0,
-    totalFallbacks: 0,
-    fallbackRatePercentage: '0.00%',
-    averageLatencyMs: 0,
-    activeKeysCount: 0,
-    configuredVaultCount: 0,
-    recentLogs: [],
-  });
+  const [overview, setOverview] = useState<OverviewData>(initialOverview);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
+
     try {
       const storedUser = authStorage.getUser();
       if (storedUser) setUser(storedUser);
@@ -76,259 +120,387 @@ function OverviewContent() {
       }
 
       if (overviewRes?.success && overviewRes.data) {
-        const metrics = overviewRes.data.metrics || overviewRes.data;
-        if (overviewRes.data.project) {
-          setCurrentProject(overviewRes.data.project);
-          authStorage.setActiveProject(overviewRes.data.project);
-        }
-
         setOverview({
-          totalRequests: metrics.totalRequests ?? 0,
-          totalFallbacks: metrics.totalFallbacks ?? 0,
-          fallbackRatePercentage: metrics.fallbackRatePercentage ?? '0.0%',
-          averageLatencyMs: metrics.averageLatencyMs ?? 0,
-          activeKeysCount: metrics.activeKeysCount ?? 0,
-          configuredVaultCount: metrics.configuredVaultCount ?? 0,
-          recentLogs: overviewRes.data.recentLogs ?? [],
+          ...initialOverview,
+          ...overviewRes.data,
+          recentLogs: Array.isArray(overviewRes.data.recentLogs)
+            ? overviewRes.data.recentLogs
+            : [],
         });
+      } else {
+        setLoadError(
+          overviewRes?.error?.message ||
+            'We could not refresh your workspace metrics. Please try again.',
+        );
       }
-    } catch (err) {
-      console.error('Failed to load dashboard overview data:', err);
+    } catch (error) {
+      console.error('Failed to load dashboard overview:', error);
+      setLoadError('Unable to load dashboard data. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadData();
+    void loadData();
+  }, [loadData]);
 
-    const handleProjectChanged = (e: any) => {
-      setCurrentProject(e.detail);
-      loadData();
-    };
-    window.addEventListener('oneapi_project_changed', handleProjectChanged);
-
-    return () => {
-      window.removeEventListener('oneapi_project_changed', handleProjectChanged);
-    };
-  }, [searchParams]);
-
-  const activeProjectId = currentProject?._id || currentProject?.id || '';
-  const projectQuery = activeProjectId ? `?project=${activeProjectId}` : '';
+  const metrics = [
+    {
+      label: 'Total requests',
+      value: formatNumber(overview.totalRequests),
+      detail: 'Requests processed by the gateway',
+      icon: Activity,
+      accent: 'metric-accent-violet',
+    },
+    {
+      label: 'Fallback events',
+      value: formatNumber(overview.totalFallbacks),
+      detail: `${overview.fallbackRatePercentage || '0.00%'} of total requests`,
+      icon: Workflow,
+      accent: 'metric-accent-cyan',
+    },
+    {
+      label: 'Active API keys',
+      value: formatNumber(overview.activeKeysCount),
+      detail: 'Credentials available to your projects',
+      icon: KeyRound,
+      accent: 'metric-accent-indigo',
+    },
+    {
+      label: 'Vault credentials',
+      value: formatNumber(overview.configuredVaultCount),
+      detail: 'Encrypted provider credentials',
+      icon: ShieldCheck,
+      accent: 'metric-accent-emerald',
+    },
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* 1. Developer Gateway Hero Banner */}
-      <div className="p-6 md:p-8 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-950 border border-slate-800 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-mono font-bold tracking-wider uppercase flex items-center gap-1.5">
-                <Layers className="w-3 h-3" />
-                PROJECT: {currentProject?.name || 'Loading Project...'}
-              </span>
-              <span className="text-xs text-slate-500 font-mono">
-                slug: <span className="text-slate-300">{currentProject?.slug || 'scope'}</span>
-              </span>
-              <Link
-                href="/dashboard/projects"
-                className="text-xs text-sky-400 hover:text-sky-300 hover:underline flex items-center gap-1 font-semibold ml-2"
-              >
-                Switch Project <ArrowRight className="w-3 h-3" />
-              </Link>
-            </div>
-
-            <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-              Welcome back, {user?.name || 'Developer'}!
-            </h2>
-            <p className="text-xs md:text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              Your reverse proxy gateway for <span className="text-white font-semibold">{currentProject?.name || 'this project'}</span> is operational with zero-downtime automated failover across AI, Music, Weather, News, and Environmental air quality APIs.
-            </p>
+    <main className="dashboard-page space-y-7">
+      {/* Page heading */}
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="mb-2 flex items-center gap-2">
+            <span className="dashboard-overline">WORKSPACE</span>
+            <span className="dashboard-overline-divider" />
+            <span className="text-xs dashboard-muted">Overview</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <Link
-              href={`/dashboard/providers${projectQuery}`}
-              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-600/25 flex items-center gap-1.5 transition-all"
-            >
-              <Cpu className="w-3.5 h-3.5" /> Configure Providers
-            </Link>
-
-            <Link
-              href={`/dashboard/keys${projectQuery}`}
-              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-xl border border-slate-700 flex items-center gap-1.5 transition-all"
-            >
-              <KeyRound className="w-3.5 h-3.5" /> API Keys
-            </Link>
-
-            <Link
-              href={`/dashboard/settings${projectQuery}`}
-              className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white font-semibold text-xs rounded-xl border border-slate-800 flex items-center gap-1.5 transition-all"
-              title="Project Settings"
-            >
-              <Settings className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Real Telemetry Metric KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Proxy Requests */}
-        <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-lg">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Proxy Requests</span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
-              <Activity className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-extrabold text-white">
-            {loading ? '...' : overview.totalRequests}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-2 flex items-center gap-1.5">
-            <span className="text-emerald-400 font-medium">Project Scoped</span> &bull; Telemetry Engine
-          </div>
+          <h1 className="dashboard-heading text-2xl font-semibold tracking-tight sm:text-[30px]">
+            Welcome back{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
+          </h1>
+          <p className="dashboard-description mt-1.5 text-sm">
+            A clear view of your API traffic, credentials and gateway activity.
+          </p>
         </div>
 
-        {/* Failovers Triggered */}
-        <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-lg">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Automated Failovers</span>
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
-              <Zap className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-extrabold text-white">
-            {loading ? '...' : overview.totalFallbacks}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-2 flex items-center gap-1.5">
-            <span className="text-amber-400 font-medium">{overview.fallbackRatePercentage}</span> rate &bull; Zero downtime
-          </div>
-        </div>
-
-        {/* Developer API Keys */}
-        <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-lg">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Project API Keys</span>
-            <div className="w-9 h-9 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center">
-              <KeyRound className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-extrabold text-white">
-            {loading ? '...' : overview.activeKeysCount}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-2 flex items-center gap-1.5">
-            <span className="text-violet-400 font-medium">Active Scopes</span> &bull; Client SDK Tokens
-          </div>
-        </div>
-
-        {/* AES-256 Vault Credentials */}
-        <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-lg">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Vault Credentials</span>
-            <div className="w-9 h-9 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center">
-              <Shield className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-extrabold text-white">
-            {loading ? '...' : overview.configuredVaultCount}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-2 flex items-center gap-1.5">
-            <span className="text-sky-400 font-medium">AES-256-GCM</span> &bull; Upstream provider keys
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Real Gateway Activity & Telemetry Table */}
-      <div className="p-6 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Activity className="w-4 h-4 text-sky-400" />
-              Live Gateway Logs & Telemetry
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Real proxy requests handled by OneAPI for <span className="text-slate-200 font-semibold">{currentProject?.name}</span>.
-            </p>
-          </div>
-
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={loadData}
+            type="button"
+            onClick={() => void loadData()}
             disabled={loading}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer transition-colors flex items-center gap-1.5 text-xs"
-            title="Refresh Logs"
+            className="dashboard-secondary-button inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
           </button>
+
+          <Link
+            href="/dashboard/providers"
+            className="dashboard-primary-button inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium"
+          >
+            Configure providers
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
+
+      {/* Workspace summary */}
+      <section className="dashboard-welcome relative overflow-hidden rounded-2xl border p-5 sm:p-7">
+        <div className="dashboard-welcome-decoration" aria-hidden="true" />
+        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium dashboard-welcome-label">
+              <span className="dashboard-live-dot" />
+              ONEAPI GATEWAY
+            </div>
+
+            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
+              Your API infrastructure, in one place.
+            </h2>
+            <p className="mt-2 max-w-xl text-sm leading-6 dashboard-welcome-copy">
+              Monitor requests, manage upstream providers and keep your
+              integrations organised from a single workspace.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Link href="/dashboard/keys" className="dashboard-welcome-action">
+              <KeyRound className="h-4 w-4" />
+              Manage API keys
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+            <Link href="/dashboard/providers" className="dashboard-welcome-action dashboard-welcome-action-secondary">
+              <Layers3 className="h-4 w-4" />
+              View providers
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Metrics */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h2 className="dashboard-section-title">Gateway metrics</h2>
+            <p className="dashboard-section-description">
+              Key figures from your workspace
+            </p>
+          </div>
+          <span className="dashboard-period-label">ALL TIME</span>
         </div>
 
-        {overview.recentLogs.length === 0 ? (
-          <div className="text-center py-14 border border-dashed border-slate-800 rounded-xl">
-            <Terminal className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-            <p className="text-xs font-medium text-slate-400">No gateway proxy requests logged yet for this project.</p>
-            <p className="text-[11px] text-slate-600 mt-1 max-w-md mx-auto">
-              Execute a query via{' '}
-              <Link href={`/dashboard/providers${projectQuery}`} className="text-sky-400 hover:underline">
-                API Providers Live Tester
-              </Link>{' '}
-              to see real-time telemetry here.
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {metrics.map((metric) => {
+            const Icon = metric.icon;
+
+            return (
+              <article key={metric.label} className="dashboard-metric-card">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="dashboard-metric-label">{metric.label}</p>
+                  <span className={`dashboard-metric-icon ${metric.accent}`}>
+                    <Icon className="h-[17px] w-[17px]" strokeWidth={1.8} />
+                  </span>
+                </div>
+
+                <div className="mt-4 flex items-baseline gap-2">
+                  <span className="dashboard-metric-value tabular-nums">
+                    {loading ? '—' : metric.value}
+                  </span>
+                </div>
+
+                <p className="dashboard-metric-detail mt-2">{metric.detail}</p>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Operational snapshot */}
+      <section className="grid grid-cols-1 gap-3 lg:grid-cols-[1.35fr_0.65fr]">
+        <article className="dashboard-panel p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="dashboard-section-title">Request performance</h2>
+              <p className="dashboard-section-description">
+                Current gateway performance indicators
+              </p>
+            </div>
+            <span className="dashboard-subtle-icon">
+              <Activity className="h-4 w-4" />
+            </span>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div>
+              <p className="dashboard-metric-label">Average latency</p>
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="dashboard-secondary-value tabular-nums">
+                  {loading ? '—' : formatNumber(overview.averageLatencyMs)}
+                </span>
+                <span className="dashboard-unit">ms</span>
+              </div>
+              <p className="dashboard-metric-detail mt-1">
+                Average response time
+              </p>
+            </div>
+
+            <div className="sm:border-l sm:pl-6 dashboard-performance-divider">
+              <p className="dashboard-metric-label">Fallback rate</p>
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="dashboard-secondary-value tabular-nums">
+                  {loading ? '—' : overview.fallbackRatePercentage || '0.00%'}
+                </span>
+              </div>
+              <p className="dashboard-metric-detail mt-1">
+                Requests routed through a fallback
+              </p>
+            </div>
+          </div>
+        </article>
+
+        <article className="dashboard-panel p-5 sm:p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="dashboard-section-title">Workspace shortcuts</h2>
+              <p className="dashboard-section-description">
+                Common management tasks
+              </p>
+            </div>
+            <span className="dashboard-subtle-icon">
+              <Zap className="h-4 w-4" />
+            </span>
+          </div>
+
+          <div className="mt-4 divide-y dashboard-list-divider">
+            <Link href="/dashboard/keys" className="dashboard-shortcut">
+              <span className="dashboard-shortcut-icon">
+                <KeyRound className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">API keys</span>
+                <span className="dashboard-metric-detail">Manage client access</span>
+              </span>
+              <ArrowUpRight className="h-4 w-4 dashboard-muted" />
+            </Link>
+
+            <Link href="/dashboard/providers" className="dashboard-shortcut">
+              <span className="dashboard-shortcut-icon">
+                <Layers3 className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Providers</span>
+                <span className="dashboard-metric-detail">Configure integrations</span>
+              </span>
+              <ArrowUpRight className="h-4 w-4 dashboard-muted" />
+            </Link>
+          </div>
+        </article>
+      </section>
+
+      {/* Gateway activity */}
+      <section className="dashboard-panel overflow-hidden">
+        <div className="flex flex-col gap-3 border-b dashboard-panel-divider px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex items-start gap-3">
+            <span className="dashboard-activity-icon">
+              <TerminalSquare className="h-4 w-4" />
+            </span>
+            <div>
+              <h2 className="dashboard-section-title">Recent gateway activity</h2>
+              <p className="dashboard-section-description">
+                The latest requests recorded by your gateway
+              </p>
+            </div>
+          </div>
+
+          <span className="dashboard-period-label">LATEST RECORDS</span>
+        </div>
+
+        {loadError && (
+          <div className="mx-5 mt-4 rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-sm text-rose-400 sm:mx-6">
+            {loadError}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="space-y-3 p-5 sm:p-6" aria-label="Loading activity">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="dashboard-skeleton-row">
+                <span className="dashboard-skeleton h-4 w-24" />
+                <span className="dashboard-skeleton h-4 w-20" />
+                <span className="dashboard-skeleton h-4 flex-1" />
+                <span className="dashboard-skeleton h-4 w-14" />
+              </div>
+            ))}
+          </div>
+        ) : overview.recentLogs.length === 0 ? (
+          <div className="px-5 py-12 text-center sm:px-6">
+            <div className="dashboard-empty-icon mx-auto">
+              <Clock3 className="h-5 w-5" />
+            </div>
+            <h3 className="mt-4 text-sm font-semibold">No requests recorded yet</h3>
+            <p className="dashboard-section-description mx-auto mt-1 max-w-md leading-6">
+              Once your application sends requests through OneAPI, request
+              details and gateway responses will appear here.
             </p>
+            <Link
+              href="/dashboard/providers"
+              className="dashboard-text-link mt-4 inline-flex items-center gap-1.5 text-sm font-medium"
+            >
+              Test a provider
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="dashboard-table w-full min-w-[760px] text-left">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider font-semibold">
-                  <th className="pb-3">Timestamp</th>
-                  <th className="pb-3">Category</th>
-                  <th className="pb-3">Endpoint</th>
-                  <th className="pb-3">Provider</th>
-                  <th className="pb-3">Status</th>
-                  <th className="pb-3">Latency</th>
-                  <th className="pb-3">Failover</th>
+                <tr>
+                  <th>Time</th>
+                  <th>Category</th>
+                  <th>Endpoint</th>
+                  <th>Provider</th>
+                  <th>Status</th>
+                  <th>Latency</th>
+                  <th>Routing</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 font-mono">
-                {overview.recentLogs.map((log: any) => (
-                  <tr key={log._id || Math.random()} className="hover:bg-slate-900/50 transition-colors">
-                    <td className="py-2.5 text-slate-500 text-[11px]">
-                      {new Date(log.createdAt).toLocaleTimeString()}
-                    </td>
-                    <td className="py-2.5 text-slate-300 capitalize">{log.category}</td>
-                    <td className="py-2.5 text-sky-400 font-semibold">{log.endpoint}</td>
-                    <td className="py-2.5 text-amber-300">{log.finalProvider}</td>
-                    <td className="py-2.5">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          log.statusCode < 400
-                            ? 'bg-emerald-500/10 text-emerald-400'
-                            : 'bg-rose-500/10 text-rose-400'
-                        }`}
-                      >
-                        {log.statusCode}
-                      </span>
-                    </td>
-                    <td className="py-2.5 text-slate-400">{log.latencyMs}ms</td>
-                    <td className="py-2.5">
-                      {log.fallbackTriggered ? (
-                        <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px] font-bold">
-                          Triggered
+              <tbody>
+                {overview.recentLogs.map((log, index) => {
+                  const successful =
+                    typeof log.statusCode === 'number' &&
+                    log.statusCode >= 200 &&
+                    log.statusCode < 400;
+
+                  return (
+                    <tr key={log._id || `${log.createdAt}-${log.endpoint}-${index}`}>
+                      <td className="whitespace-nowrap">{formatTime(log.createdAt)}</td>
+                      <td className="capitalize">{log.category || '—'}</td>
+                      <td>
+                        <span className="dashboard-endpoint" title={log.endpoint}>
+                          {log.endpoint || '—'}
                         </span>
-                      ) : (
-                        <span className="text-slate-600 text-[10px]">Direct</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>{log.finalProvider || '—'}</td>
+                      <td>
+                        <span className={`dashboard-status ${successful ? 'is-success' : 'is-error'}`}>
+                          <span className="dashboard-status-dot" />
+                          {typeof log.statusCode === 'number' ? log.statusCode : 'Unknown'}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap">
+                        {typeof log.latencyMs === 'number' ? `${log.latencyMs} ms` : '—'}
+                      </td>
+                      <td>
+                        {log.fallbackTriggered ? (
+                          <span className="dashboard-route-tag is-fallback">
+                            <ArrowDownRight className="h-3 w-3" />
+                            Fallback
+                          </span>
+                        ) : (
+                          <span className="dashboard-route-tag">Direct</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
-      </div>
-    </div>
+
+        {!loading && overview.recentLogs.length > 0 && (
+          <div className="flex items-center justify-between border-t dashboard-panel-divider px-5 py-3 sm:px-6">
+            <span className="dashboard-metric-detail">
+              Showing {overview.recentLogs.length} recent records
+            </span>
+            <span className="dashboard-metric-detail inline-flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 dashboard-success-icon" />
+              Gateway records loaded
+            </span>
+          </div>
+        )}
+      </section>
+
+      {/* Workspace identity */}
+      <footer className="flex flex-col gap-1 border-t dashboard-panel-divider pt-4 text-xs sm:flex-row sm:items-center sm:justify-between">
+        <span className="dashboard-muted">
+          Signed in as <strong className="dashboard-footer-name">{user?.email || 'your account'}</strong>
+        </span>
+        <span className="dashboard-muted">OneAPI workspace</span>
+      </footer>
+    </main>
   );
 }
 
@@ -337,7 +509,7 @@ export default function OverviewPage() {
     <Suspense
       fallback={
         <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-500 text-xs">
-          <Loader2 className="w-6 h-6 animate-spin text-sky-400" />
+          <Loader2 className="w-6 h-6 animate-spin text-violet-300" />
           <span>Loading project overview...</span>
         </div>
       }
